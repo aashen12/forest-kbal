@@ -27,7 +27,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   if (simulation) {
     nc_rf <- c(5, 10, 25, 50, 100)
   } else {
-    nc_rf <- 2:50
+    nc_rf <- 2:5
   }
   rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus"), ncomp = nc_rf)
   rf.scenarios.ker <- expand.grid(fr = c("rf_K"), ncomp = nrow(data))

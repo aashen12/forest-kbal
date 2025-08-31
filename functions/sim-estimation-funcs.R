@@ -212,7 +212,7 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
   
   data.frame(est = "bal.wgt", "feat_rep" = feat_rep, 
              "bias" = bias.bw, rel.bias=rel.bias, "cvg" = coverage.bw, 
-             "pbr" = pbr.bal.wt, "ess" = n.0, "est.att" = sr.att.bw)
+             "pbr" = pbr.bal.wt, "ess" = n.0, "est.att" = sr.att.bw, se = att.bw["SE"])
 }
 
 
@@ -317,7 +317,8 @@ logisticIPW <- function(data, true_att, feat_rep, verbose = FALSE) {
   
   data.frame(est = "ipw", "feat_rep" = feat_rep, 
              "bias" = bias.ipw, rel.bias=rel.bias, "cvg" = coverage.ipw,
-             "pbr" = pbr.ip.wt, "ess" = n.0.ip, "est.att" = sr.att.ipw)
+             "pbr" = pbr.ip.wt, "ess" = n.0.ip, "est.att" = sr.att.ipw,
+             se = att.ipw["SE"])
 }
 
 
@@ -378,7 +379,8 @@ outcomeRegression <- function(data, true_att, feat_rep, type = "ols", verbose = 
   }
   
   data.frame(est = type, "feat_rep" = feat_rep, 
-             "bias" = bias, rel.bias=rel.bias, "cvg" = coverage, pbr = NA, ess = NA, "est.att" = est.att)
+             "bias" = bias, rel.bias=rel.bias, "cvg" = coverage, pbr = NA, ess = NA, 
+             "est.att" = est.att, se = NA)
 }
 
 
@@ -515,6 +517,6 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
   
   data.frame(est = paste(out.mod, ps.mod, sep = "_"), "feat_rep" = feat_rep, 
              bias = bias.dr, rel.bias=rel.bias, cvg = coverage.dr, pbr = NA, ess = NA,
-             "true.att" = true_att, est.att = dr.att)
+             "true.att" = true_att, est.att = dr.att, se = NA)
 }
 
