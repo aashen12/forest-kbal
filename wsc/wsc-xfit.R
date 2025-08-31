@@ -47,9 +47,8 @@ data.pre.log <- data.pre
 
 
 data.pre.log <- data.pre.log %>%
-  dplyr::mutate(across(
-    where(is.numeric) & !any_of(c("Z","Y")),
-    ~ if (n_distinct(.x, na.rm = TRUE) >= 3 && min(.x, na.rm = TRUE) >= 0) log1p(.x) else .x))
+  dplyr::mutate(across(where(is.numeric) & !any_of(c("Z","Y")), 
+                       ~if (n_distinct(.x, na.rm = TRUE) >= 3 && min(.x, na.rm = TRUE) >= 0) log1p(.x) else .x))
 
 data.c <- data.pre %>% filter(Z == 0)
 data.t <- data.pre %>% filter(Z == 1)
