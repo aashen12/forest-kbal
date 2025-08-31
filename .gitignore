@@ -8,3 +8,4 @@
 
 # Always allow this file
 !.gitignore
+.Rproj.user
