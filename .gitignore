@@ -1,0 +1,11 @@
+# Ignore everything by default
+*
+
+# Allow Git to track only these folders
+!/simulations/
+!/functions/
+!/wsc/
+
+# Always allow this file
+!.gitignore
+.Rproj.user
