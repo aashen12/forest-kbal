@@ -5,9 +5,18 @@ library(ggplot2)
 library(sandwich)
 library(WeightIt)
 library(splines)
+library(GenericML)
 library(Matrix)
 library(glmnet)
 library(stochtree)
+library(foreach)
+library(doParallel)
+library(parallel)
+library(furrr)
+library(randomForest)
+library(kbal)
+library(geepack)
+library(irlba)
 
 rm(list=ls())
 
@@ -60,15 +69,15 @@ single.fit <- function(pilot.dat, est.dat, treat.dat) {
                             treat.true = 0, verbose = TRUE, simulation = FALSE)
 }
 
-process_finished_sim <- function(edat) {
+process_finished_sim <- function(edat, id = 999) {
   out <- lapply(1:length(edat), function(i) {
     resi <- edat[[i]]
     dplyr::bind_rows(resi)
   })
-  dplyr::bind_rows(out) %>% dplyr::mutate(id = i)
+  dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
 }
 
-run_cfit <- function(data.c1, data.c2, treat.dat, trans) {
+run_cfit <- function(data.c1, data.c2, treat.dat, trans, id = 999) {
   fit.2.1.raw <- single.fit(pilot.dat = data.c2, est.dat = data.c1, treat.dat = treat.dat) 
   print("Finished first fit")
   fit.1.2.raw <- single.fit(pilot.dat = data.c1, est.dat = data.c2, treat.dat = treat.dat)
@@ -78,8 +87,8 @@ run_cfit <- function(data.c1, data.c2, treat.dat, trans) {
   # in other words, give me (fit.1.2[i,j] + fit.2.1[i,j]) / 2
   # Assume fit.1.2 and fit.2.1 are already loaded and have the same structure
   
-  fit.2.1 <- process_finished_sim(fit.2.1.raw)
-  fit.1.2 <- process_finished_sim(fit.1.2.raw)
+  fit.2.1 <- process_finished_sim(fit.2.1.raw, id = id)
+  fit.1.2 <- process_finished_sim(fit.1.2.raw, id = id)
   
   
   cfit.df <- fit.1.2  # initialize with one of the data frames
@@ -113,15 +122,11 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   data.c1.log <- data.c.log[sample_split, ]
   data.c2.log <- data.c.log[-sample_split, ]
   
-  out.notrans <- run_cfit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none")
-  out.log <- run_cfit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log")
-  
+  out.notrans <- run_cfit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
+  out.log <- run_cfit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
+  bind_rows(out.notrans, out.log)
   
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-
-
-cfit.df <- average_cross_fit(out)
-
-save(cfit.df, file = "results/wsc-math-cfit.RData")
+save(out, file = "results/wsc-math-cfit.RData")
