@@ -1,3 +1,7 @@
+library(randomForest)
+library(tidyverse)
+library(irlba)
+
 rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   # model: a fitted randomForest object
   # data: data frame or matrix of predictors (no response column)

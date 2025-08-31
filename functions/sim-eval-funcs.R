@@ -1,4 +1,4 @@
-eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE) {
+eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulation = TRUE) {
   
   data.c <- dat %>% filter(Z==0)
   data.t <- dat %>% filter(Z==1)
@@ -12,10 +12,23 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE) {
   data <- rbind(data.t, data.c)
   # gets rid of the training sample used to select interactions & nonlinear covariates
   
-  covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
+  if (simulation) {
+    covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
+  } else {
+    covs <- c(
+      "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
+      "collegeS", "collegeM", "collegeD", "calc", "logBooks", "mathLike", "big5O", "big5C",
+      "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
+      "mathPre"
+    )
+  }
   
   #### Generate Random Forest features #####
-  nc_rf <- c(5, 10, 25, 50, 100)
+  if (simulation) {
+    nc_rf <- c(5, 10, 25, 50, 100)
+  } else {
+    nc_rf <- 2:50
+  }
   rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus"), ncomp = nc_rf)
   rf.scenarios.ker <- expand.grid(fr = c("rf_K"), ncomp = nrow(data))
   rf.scenarios <- rbind(rf.scenarios.partial, rf.scenarios.ker)

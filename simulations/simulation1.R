@@ -9,7 +9,7 @@ library(GenericML)
 library(WeightIt)
 library(glmnet)
 library(kbal)
-
+library(randomForest)
 
 setwd("~/Desktop/BalWeights/forest-kbal/simulations")
 source("../functions/randomForestFeatures.R")
