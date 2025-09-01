@@ -48,8 +48,8 @@ create_plot_wsc <- function(trans_level = c("none","log"),
   results.df %>%
     dplyr::filter(trans == trans_level, est == "bal.wgt") %>%
     dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
-    dplyr::filter(!feat_rep %in% c("raw","rf_K"),
-                  nc <= 8, nc >= 4) %>%
+    dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
+    dplyr::filter(nc <= 10) %>% 
     dplyr::mutate(
       feat_group = dplyr::case_when(
         feat_rep %in% c("kbal_only","rf_only") ~ "Kernel Only",
