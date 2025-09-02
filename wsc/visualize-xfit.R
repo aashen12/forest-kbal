@@ -3,13 +3,17 @@ library(dplyr)
 library(ggplot2)
 
 
-load("results/wsc-math-cfit.RData")
+load("results/wsc-math-xfit.RData")
+
+out 
 
 full.df <- do.call(rbind, out)
 
 # full.df$repeat_num <- rep(1:5, rep(22, 5)) 
 
 K <- max(full.df$id)
+
+
 
 results.df <- full.df %>% 
   dplyr::mutate(
@@ -21,6 +25,7 @@ results.df <- full.df %>%
   dplyr::summarise(
     est.att = mean(est.att),
     se.xfit = sqrt(sum(se^2)) / K,
+    elbo = mean(elbo),
     .groups = "drop" # This ensures the output is not a grouped data frame
   ) %>% 
   dplyr::mutate(
@@ -31,7 +36,9 @@ results.df <- full.df %>%
 
 results.df$nc <- as.numeric(results.df$nc)
 
+head(results.df)
 
+summary(full.df$elbo)
 
 create_plot_wsc <- function(trans_level = c("none","log"),
                               text_size = 25,
@@ -49,7 +56,7 @@ create_plot_wsc <- function(trans_level = c("none","log"),
     dplyr::filter(trans == trans_level, est == "bal.wgt") %>%
     dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
     dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
-    dplyr::filter(nc <= 10) %>% 
+    dplyr::filter(nc <= 7 & nc >= 3) %>% 
     dplyr::mutate(
       feat_group = dplyr::case_when(
         feat_rep %in% c("kbal_only","rf_only") ~ "Kernel Only",
@@ -114,8 +121,14 @@ create_plot_wsc <- function(trans_level = c("none","log"),
     )
 }
 
+# create elbo plot
+
+
 
 create_plot_wsc("none")
 create_plot_wsc("log")
+
+
+
 
 

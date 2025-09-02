@@ -47,8 +47,19 @@ data.pre.log <- data.pre
 
 
 data.pre.log <- data.pre.log %>%
-  dplyr::mutate(across(where(is.numeric) & !any_of(c("Z","Y")), 
-                       ~if (n_distinct(.x, na.rm = TRUE) >= 3 && min(.x, na.rm = TRUE) >= 0) log1p(.x) else .x))
+  mutate(across(
+    .cols = where(is.numeric) & !any_of(c("Z", "Y")),
+    .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
+      log(.x + 1)
+    } else {
+      .x
+    }
+  ))
+
+
+head(data.pre.log)
+head(data.pre)
+
 
 data.c <- data.pre %>% filter(Z == 0)
 data.t <- data.pre %>% filter(Z == 1)
@@ -56,7 +67,7 @@ data.t <- data.pre %>% filter(Z == 1)
 data.c.log <- data.pre.log %>% filter(Z == 0)
 data.t.log <- data.pre.log %>% filter(Z == 1)
 
-n_repeat <- 6
+n_repeat <- 10
 
 set.seed(12)
 
@@ -66,21 +77,25 @@ single.fit <- function(pilot.dat, est.dat, treat.dat) {
   sing.fit.out <- eval_data(dat = analysis.dat, 
                             pilot.dat = pilot.dat, 
                             treat.true = 0, verbose = TRUE, simulation = FALSE)
+  sing.fit.out
 }
 
 process_finished_sim <- function(edat, id = 999) {
   out <- lapply(1:length(edat), function(i) {
     resi <- edat[[i]]
-    dplyr::bind_rows(resi)
+    elbo <- resi$elbo
+    resi_rest <- resi[names(resi) != "elbo"]
+    dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo = elbo)
   })
   dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
 }
 
-run_cfit <- function(data.c1, data.c2, treat.dat, trans, id = 999) {
+run_cross_fit <- function(data.c1, data.c2, treat.dat, trans, id = 999) {
   fit.2.1.raw <- single.fit(pilot.dat = data.c2, est.dat = data.c1, treat.dat = treat.dat) 
   print("Finished first fit")
   fit.1.2.raw <- single.fit(pilot.dat = data.c1, est.dat = data.c2, treat.dat = treat.dat)
   print("Finished second fit") 
+
   
   # average each entry across the two fits. take entry-wise everage between fit.1.2[i,j] and fit.2.1[i,j]. 
   # in other words, give me (fit.1.2[i,j] + fit.2.1[i,j]) / 2
@@ -121,11 +136,11 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   data.c1.log <- data.c.log[sample_split, ]
   data.c2.log <- data.c.log[-sample_split, ]
   
-  out.notrans <- run_cfit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
-  out.log <- run_cfit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
-  bind_rows(out.notrans, out.log)
-  
+  out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
+  out.log <- run_cross_fit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
+  out_df <- bind_rows(out.notrans, out.log)
+  out_df
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-save(out, file = "results/wsc-math-cfit.RData")
+save(out, file = "results/wsc-math-xfit.RData")

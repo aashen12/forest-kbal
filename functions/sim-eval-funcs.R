@@ -25,10 +25,11 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   
   #### Generate Random Forest features #####
   if (simulation) {
-    nc_rf <- c(5, 10, 25, 50, 100)
+    nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- 2:50
+    nc_rf <- nc_bart <- 2:50
   }
+  if (verbose) print("Starting RF Kernel")
   rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus"), ncomp = nc_rf)
   rf.scenarios.ker <- expand.grid(fr = c("rf_K"), ncomp = nrow(data))
   rf.scenarios <- rbind(rf.scenarios.partial, rf.scenarios.ker)
@@ -39,13 +40,26 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   
   rf_obj <- rf_kernel_matrix(model = rfmod, data = data, X = as.matrix(data %>% dplyr::select(-Y)),
                              n_components = max(nc_rf), verbose = TRUE)
+  elbo_rf <- rf_obj$elbow
   
   data_rf_only_whole <- rf_obj$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   data_rf_plus_whole <- rf_obj$data_rf
   data_rf_K <- rf_obj$K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  ##############################################################################
   
+  ############################# Extract BART Kernel Features #################################
+  if (verbose) print("Starting BART Kernel")
+  bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
+  bart.scenarios <- bart.scenarios.partial
+  bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
+  K_generic <- bart_obj$kernel
+  bart.pca <- pca_bart(kernel = K_generic, data = data, n_components = max(nc_bart))
+  elbo_bart <- bart.pca$elbow
+  data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  data_bart_plus_whole <- bart.pca$data_bart
   
   ############################# Extract Gaussian Kernel Features #################################
+  if (verbose) print("Starting Kbal Kernel")
   kbal.scenarios <- expand.grid(fr = c("kbal_only", "kbal_plus"), ncomp = nc_rf)
   X_unscaled <- model.matrix(reformulate(c(covs, "-1")), data)
   # scale to have variance 1 but not mean 0
@@ -68,12 +82,12 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   )
   names(kbal_objs) <- paste0("kbal_", nc_rf)
   if (verbose) print("KBal Finished!")
-  ###########################################################################
+  ##############################################################################
   
   raw.scenarios <- expand.grid(fr = "raw", ncomp = 0)
   ### Run the actual simulation ###
-  scenarios <- rbind(raw.scenarios, rf.scenarios, kbal.scenarios)
-  
+  scenarios <- rbind(raw.scenarios, rf.scenarios, bart.scenarios, kbal.scenarios)
+  if (verbose) print("Starting ATT estimation")
   out <- lapply(1:nrow(scenarios), function(i){
     fr <- scenarios[i,1]
     nc <- scenarios[i,2]
@@ -93,6 +107,16 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
       kernel_covs <- c(paste0("PC", 1:nc))
       input_covs <- kernel_covs
       dataset <- data_rf_only_whole %>% dplyr::select(Z, Y, all_of(input_covs))
+    } else if (fr == "bart_plus") {
+      raw_covs <- covs
+      kernel_covs <- c(paste0("PC", 1:nc))
+      input_covs <- c(raw_covs, kernel_covs)
+      dataset <- data_bart_plus_whole %>% dplyr::select(Z, Y, all_of(input_covs))
+    } else if (fr == "bart_only") {
+      raw_covs <- NULL
+      kernel_covs <- c(paste0("PC", 1:nc))
+      input_covs <- kernel_covs
+      dataset <- data_bart_only_whole %>% dplyr::select(Z, Y, all_of(input_covs))
     } else if (fr == "rf_K") {
       raw_covs <- NULL
       kernel_covs <- c(paste0("PC", 1:nc))
@@ -133,7 +157,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     
     list(bw = bw, ipw = ipw, 
          rf = rf,
-         aug.l2 = aug.l2, aug.vanilla = aug.vanilla)
+         aug.l2 = aug.l2, aug.vanilla = aug.vanilla, elbo_rf = elbo_rf, elbo_bart = elbo_bart)
   })
   out
 }

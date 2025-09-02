@@ -1,4 +1,7 @@
 rm(list=ls())
+if (!require(rsample)) install.packages("rsample"); library(rsample)
+if (!require(kernlab)) install.packages("kernlab"); library(kernlab)
+if (!require(stochtree)) install.packages("stochtree"); library(stochtree)
 # generate Luke's data from Simulation 1 from Bal-Wgt-Educ
 library(MASS)
 library(tidyverse)
@@ -9,10 +12,14 @@ library(GenericML)
 library(WeightIt)
 library(glmnet)
 library(kbal)
+library(rsample)
+library(kernlab)
+library(stochtree)
 library(randomForest)
 
 
 setwd("~/Desktop/BalWeights/forest-kbal/simulations")
+source("../functions/BART-features.R")
 source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
@@ -93,7 +100,7 @@ run_scenario = function() {
     edat <- tryCatch({
       eval_data(dat = bdat, 
                 pilot.dat = pilot.dat, 
-                treat.true = true.att.bdat, verbose = FALSE)
+                treat.true = true.att.bdat, verbose = FALSE, simulation = TRUE)
     },
     error = function(e) {
       print("Eval data failed")
@@ -106,8 +113,12 @@ run_scenario = function() {
     #edat
     out <- lapply(1:length(edat), function(i) {
       resi <- edat[[i]]
-      dplyr::bind_rows(resi)
+      elbo_rf <- resi$elbo_rf
+      elbo_bart <- resi$elbo_bart
+      resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart")]
+      dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
     })
+    
     dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
   }, mc.set.seed = TRUE, mc.cores = numCores - 1) 
   #cat("Sim Done")

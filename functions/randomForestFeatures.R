@@ -9,7 +9,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   # extract terminal‐node IDs: an N × n_trees matrix
   preds <- predict(model, newdata = as.data.frame(data), nodes = TRUE)
   terminal_nodes <- attributes(preds)$nodes
-  if (verbose) print("Terminal nodes extracted")
+  if (verbose) print("RF Terminal nodes extracted")
   
   N <- nrow(terminal_nodes)
   n_trees <- ncol(terminal_nodes)
@@ -28,7 +28,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
     rownames(K) <- colnames(K) <- rownames(data)
   }
   
-  if (verbose) print(paste("Finished creating matrix. Running SVD."))
+  if (verbose) print(paste("Finished creating forest kernel matrix. Running SVD."))
   
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
   
