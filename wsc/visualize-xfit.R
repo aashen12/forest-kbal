@@ -50,6 +50,10 @@ create_plot_wsc <- function(trans_level = c("none","log"),
     dplyr::filter(feat_rep == "raw") %>%
     dplyr::select(est, trans, raw0_est = est.att)
   
+  rf0_lines <- results.df %>% 
+    filter(est == "rf", feat_rep == "raw") %>% 
+    dplyr::select(est, trans, feat_rep, rf0_est = est.att)
+  
   bench_val <- if (outcome == "math") 0.79 else 2.18
   
   results.df %>%

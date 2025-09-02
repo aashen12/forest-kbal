@@ -25,6 +25,7 @@ setwd("~/Desktop/BalWeights/forest-kbal/wsc")
 load("data/wsc-obs-study-data.RData")
 
 setwd("~/Desktop/BalWeights/forest-kbal/wsc")
+source("../functions/BART-features.R")
 source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
@@ -83,9 +84,10 @@ single.fit <- function(pilot.dat, est.dat, treat.dat) {
 process_finished_sim <- function(edat, id = 999) {
   out <- lapply(1:length(edat), function(i) {
     resi <- edat[[i]]
-    elbo <- resi$elbo
-    resi_rest <- resi[names(resi) != "elbo"]
-    dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo = elbo)
+    elbo_rf <- resi$elbo_rf
+    elbo_bart <- resi$elbo_bart
+    resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart")]
+    dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
   })
   dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
 }
