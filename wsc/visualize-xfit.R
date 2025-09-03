@@ -5,11 +5,12 @@ library(ggplot2)
 
 load("results/wsc-math-xfit.RData")
 
-out 
 
 full.df <- do.call(rbind, out)
 
 # full.df$repeat_num <- rep(1:5, rep(22, 5)) 
+
+dim(full.df)
 
 K <- max(full.df$id)
 
@@ -25,7 +26,8 @@ results.df <- full.df %>%
   dplyr::summarise(
     est.att = mean(est.att),
     se.xfit = sqrt(sum(se^2)) / K,
-    elbo = mean(elbo),
+    elbo_rf = mean(elbo_rf),
+    elbo_bart = mean(elbo_bart),
     .groups = "drop" # This ensures the output is not a grouped data frame
   ) %>% 
   dplyr::mutate(
@@ -63,17 +65,18 @@ create_plot_wsc <- function(trans_level = c("none","log"),
     dplyr::filter(nc <= 7 & nc >= 3) %>% 
     dplyr::mutate(
       feat_group = dplyr::case_when(
-        feat_rep %in% c("kbal_only","rf_only") ~ "Kernel Only",
-        feat_rep %in% c("kbal_plus","rf_plus") ~ "Kernel + Raw",
+        feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
+        feat_rep %in% c("kbal_plus","rf_plus", "bart_plus") ~ "Kernel + Raw",
         TRUE ~ NA_character_
       ),
-      feat_group = factor(feat_group, levels = c("Kernel Only","Kernel + Raw")),
+      feat_group = factor(feat_group, levels = c("Kernel Only", "Kernel + Raw")),
       family = dplyr::case_when(
         grepl("kbal", feat_rep) ~ "KBal",
         grepl("rf",   feat_rep) ~ "RF",
+        grepl("bart", feat_rep) ~ "BART",
         TRUE ~ NA_character_
       ),
-      family = factor(family, levels = c("KBal","RF"))
+      family = factor(family, levels = c("KBal","RF", "BART"))
     ) %>%
     dplyr::filter(!is.na(feat_group), !is.na(family)) %>%
     ggplot2::ggplot(aes(x = nc, y = est.att,
@@ -101,25 +104,27 @@ create_plot_wsc <- function(trans_level = c("none","log"),
       values = c(
         KBal             = "#d62728",
         RF               = "#1f77b4",
+        BART = "#2ca02c",
         "Raw Covariates" = "black",
         "Exp. Benchmark" = "firebrick2"
       ),
       labels = c(
         KBal             = "Design Kernel",
-        RF               = "Forest Kernel",
+        RF               = "RF Kernel",
+        BART = "BART Kernel",
         "Raw Covariates" = "Raw Covariates",
         "Exp. Benchmark" = "Exp. Benchmark"
       ),
-      breaks = c("KBal","RF","Raw Covariates","Exp. Benchmark")
+      breaks = c("KBal","RF", "BART", "Raw Covariates","Exp. Benchmark")
     ) +
-    scale_shape_manual(values = c(KBal = 17, RF = 16)) +
+    scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16)) +
     guides(
       shape = "none",  # hide duplicate shape legend
       color = guide_legend(
         override.aes = list(
-          shape    = c(17, 16, NA, NA),              # points for KBal/RF; none for lines
-          linetype = c("blank", "blank", "dashed", "solid"),
-          linewidth= c(NA, NA, 0.9, 0.9)
+          shape    = c(17, 16, 16, NA, NA),              # points for KBal/RF; none for lines
+          linetype = c("blank", "blank", "blank", "dashed", "solid"),
+          linewidth= c(NA, NA, NA, 0.9, 0.9)
         )
       )
     )
