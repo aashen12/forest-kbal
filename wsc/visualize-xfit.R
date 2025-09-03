@@ -40,7 +40,8 @@ results.df$nc <- as.numeric(results.df$nc)
 
 head(results.df)
 
-summary(full.df$elbo)
+summary(full.df$elbo_rf)
+summary(full.df$elbo_bart)
 
 create_plot_wsc <- function(trans_level = c("none","log"),
                               text_size = 25,
@@ -62,7 +63,7 @@ create_plot_wsc <- function(trans_level = c("none","log"),
     dplyr::filter(trans == trans_level, est == "bal.wgt") %>%
     dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
     dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
-    dplyr::filter(nc <= 7 & nc >= 3) %>% 
+    dplyr::filter(nc <= 7) %>% 
     dplyr::mutate(
       feat_group = dplyr::case_when(
         feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
