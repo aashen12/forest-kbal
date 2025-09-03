@@ -95,6 +95,7 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
   return(list(kernel = kernel, kernel_post_f = kernel_post_f, kernel_post=kernel_post))
 }
 
+
 pca_bart <- function(kernel, data, n_components = 10) {
   K <- as.matrix(kernel)
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
