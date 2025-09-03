@@ -6,6 +6,10 @@ library(irlba)
 library(kernlab)
 
 bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simulation = TRUE) {
+  # train: pilot sample of controls only
+  # test: analysis sample of treated and control
+  # no "source" distribution
+  
   train_con <- train %>% filter(Z == 0) 
   test_con <- test %>% filter(Z == 0)
   test_trt <- test %>% filter(Z == 1)
@@ -46,7 +50,7 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
   nkeep = 50 # Thinning MCMC output to save time
 
   n_test = nrow(test)
-  kernel_post = matrix(0, nrow = n_test, ncol=n_test)
+  kernel_post = matrix(0, nrow = n_test, ncol = n_test)
   kernel = kernel_post
   
   muhat = matrix(0, nrow=n_test, ncol=nkeep)
