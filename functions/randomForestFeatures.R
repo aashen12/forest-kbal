@@ -31,6 +31,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   if (verbose) print(paste("Finished creating forest kernel matrix. Running SVD."))
   
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
+  if (verbose) print("First RF PCA finished")
   # Scale by square root of singular values
   features <- svd_result$u %*% diag(svd_result$d) %>% data.frame()
   names(features) <- paste0("PC", 1:n_components)
@@ -39,6 +40,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   Xs <- scale(X)
   K_mixed <- K + Xs %*% t(Xs)
   svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
+  if (verbose) print("Second RF PCA finished")
   # Scale by square root of singular values
   features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
   names(features_mixed) <- paste0("PC", 1:n_components)

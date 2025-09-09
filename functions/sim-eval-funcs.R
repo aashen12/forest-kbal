@@ -54,7 +54,8 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   bart.scenarios <- bart.scenarios.partial
   bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
   K_generic <- bart_obj$kernel
-  bart.pca <- pca_bart(kernel = K_generic, data = data, X = X, n_components = max(nc_bart))
+  bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
+                       n_components = max(nc_bart))
   elbo_bart <- bart.pca$elbow
   data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   data_bart_plus_whole <- bart.pca$data_bart

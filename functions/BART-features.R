@@ -96,10 +96,10 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
 }
 
 
-pca_bart <- function(kernel, data, X, n_components = 10) {
+pca_bart <- function(kernel, data, X, n_components = 10, verbose = FALSE) {
   K <- as.matrix(kernel)
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
-  
+  if (verbose) print("First BART PCA finished")
   # Scale by square root of singular values
   features <- svd_result$u %*% diag(svd_result$d) %>% data.frame()
   names(features) <- paste0("PC", 1:n_components)
@@ -108,6 +108,7 @@ pca_bart <- function(kernel, data, X, n_components = 10) {
   Xs <- scale(X)
   K_mixed <- K + Xs %*% t(Xs)
   svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
+  if (verbose) print("Second BART PCA finished")
   # Scale by square root of singular values
   features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
   names(features_mixed) <- paste0("PC", 1:n_components)
