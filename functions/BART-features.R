@@ -96,7 +96,7 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
 }
 
 
-pca_bart <- function(kernel, data, n_components = 10) {
+pca_bart <- function(kernel, data, X, n_components = 10) {
   K <- as.matrix(kernel)
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
   
@@ -104,6 +104,13 @@ pca_bart <- function(kernel, data, n_components = 10) {
   features <- svd_result$u %*% diag(svd_result$d) %>% data.frame()
   names(features) <- paste0("PC", 1:n_components)
   data_bart <- cbind(data, features)
+  
+  Xs <- scale(X)
+  K_mixed <- K + Xs %*% t(Xs)
+  svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
+  # Scale by square root of singular values
+  features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
+  names(features_mixed) <- paste0("PC", 1:n_components)
   
   # Find elbo point
   # 1. raw eigenvalues
@@ -167,6 +174,7 @@ pca_bart <- function(kernel, data, n_components = 10) {
     # leaf_encoding = leaf_encoding,
     data_bart = data_bart,
     features = features,
+    features_mixed = features_mixed,
     explained_variance = svd_result$d^2 / sum(svd_result$d^2),
     scree = gg,
     elbow = elbow,
