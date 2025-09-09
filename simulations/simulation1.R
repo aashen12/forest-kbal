@@ -2,7 +2,6 @@ rm(list=ls())
 if (!require(rsample)) install.packages("rsample"); library(rsample)
 if (!require(kernlab)) install.packages("kernlab"); library(kernlab)
 if (!require(stochtree)) install.packages("stochtree"); library(stochtree)
-# generate Luke's data from Simulation 1 from Bal-Wgt-Educ
 library(MASS)
 library(tidyverse)
 options(list(dplyr.summarise.inform = FALSE))
@@ -12,9 +11,6 @@ library(GenericML)
 library(WeightIt)
 library(glmnet)
 library(kbal)
-library(rsample)
-library(kernlab)
-library(stochtree)
 library(randomForest)
 
 setwd("~/Desktop/BalWeights/forest-kbal/simulations")
@@ -134,7 +130,9 @@ run_scenario = function() {
       dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
     })
     
-    dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
+    out_df <- dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
+    rownames(out_df) <- NULL
+    out_df
   }, mc.set.seed = TRUE, mc.cores = numCores - 1) 
   #cat("Sim Done")
   dplyr::bind_rows(reps_qs0)

@@ -119,7 +119,9 @@ run_scenario = function() {
       dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
     })
     
-    dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
+    out_df <- dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
+    rownames(out_df) <- NULL
+    out_df
   }, mc.set.seed = TRUE, mc.cores = numCores - 1) 
   #cat("Sim Done")
   dplyr::bind_rows(reps_qs0)
