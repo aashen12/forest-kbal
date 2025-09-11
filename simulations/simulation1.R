@@ -19,10 +19,10 @@ source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-library(foreach)
-library(doParallel)
+
 library(parallel)
-library(furrr)
+library(future)
+library(future.apply)
 
 args <- commandArgs(trailingOnly=TRUE)
 
@@ -89,10 +89,9 @@ make_data <- function(n) {
 }
 
 
-numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
+# numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
+numCores <- as.numeric(Sys.getenv('SLURM_NTASKS'))
 plan(multisession, workers = numCores)
-
-### Sim Run
 
 
 set.seed(23967)
@@ -104,7 +103,7 @@ run_scenario = function() {
   
   
   # Run the Simulation              
-  reps_qs0 = mclapply( 1:sim_reps, function( id ) {
+  reps_qs0 = future_lapply( 1:sim_reps, function( id ) {
     if (id < 25) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE)
     if (id > 975) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE) 
     if (id %% 25 == 0) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE)
@@ -119,9 +118,7 @@ run_scenario = function() {
     
     edat <- eval_data(dat = bdat, pilot.dat = pilot.dat, 
                       treat.true = true.att.bdat, verbose = FALSE, simulation = TRUE)
-    
-    #edat$id = id
-    #edat
+
     out <- lapply(1:length(edat), function(i) {
       resi <- edat[[i]]
       elbo_rf <- resi$elbo_rf
@@ -133,7 +130,7 @@ run_scenario = function() {
     out_df <- dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
     rownames(out_df) <- NULL
     out_df
-  }, mc.set.seed = TRUE, mc.cores = numCores - 1) 
+  }, future.seed = TRUE) 
   #cat("Sim Done")
   dplyr::bind_rows(reps_qs0)
 }

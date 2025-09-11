@@ -2,7 +2,7 @@
 library(dplyr)
 library(ggplot2)
 
-
+setwd("~/Desktop/BalWeights/forest-kbal/wsc")
 load("results/wsc-math-xfit.RData")
 
 
@@ -40,8 +40,10 @@ results.df$nc <- as.numeric(results.df$nc)
 
 head(results.df)
 
-summary(full.df$elbo_rf)
-summary(full.df$elbo_bart)
+full.df %>% group_by(trans) %>% 
+  summarise(elbo_rf = mean(elbo_rf),
+            elbo_bart = mean(elbo_bart))
+
 
 create_plot_wsc <- function(trans_level = c("none","log"),
                               text_size = 25,
@@ -105,7 +107,7 @@ create_plot_wsc <- function(trans_level = c("none","log"),
       values = c(
         KBal             = "#d62728",
         RF               = "#1f77b4",
-        BART = "#2ca02c",
+        BART = "#ff7f0e",
         "Raw Covariates" = "black",
         "Exp. Benchmark" = "firebrick2"
       ),

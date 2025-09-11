@@ -109,7 +109,7 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
     X_raw <- scale(model.matrix(reformulate(raw_basis), data))
     X_raw <- X_raw / sqrt(ncol(X_raw))
     X_kernel <- model.matrix(reformulate(kernel_basis), data)
-    X_kernel <- X_kernel / sum(apply(X_kernel, 2, sd))
+    X_kernel <- X_kernel / sqrt(sum(apply(X_kernel, 2, var)))
     X <- cbind(X_raw, X_kernel)
   }
   
