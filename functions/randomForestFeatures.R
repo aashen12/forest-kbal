@@ -33,17 +33,17 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
   if (verbose) print("First RF PCA finished")
   # Scale by square root of singular values
-  features <- svd_result$u %*% diag(svd_result$d) %>% data.frame()
+  features <- svd_result$u %*% diag(sqrt(svd_result$d)) %>% data.frame()
   names(features) <- paste0("PC", 1:n_components)
   data_rf <- cbind(data, features)
   
-  Xs <- scale(X)
-  K_mixed <- K + Xs %*% t(Xs)
-  svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
-  if (verbose) print("Second RF PCA finished")
-  # Scale by square root of singular values
-  features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
-  names(features_mixed) <- paste0("PC", 1:n_components)
+  # Xs <- scale(X)
+  # K_mixed <- K + Xs %*% t(Xs)
+  # svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
+  # if (verbose) print("Second RF PCA finished")
+  # # Scale by square root of singular values
+  # features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
+  # names(features_mixed) <- paste0("PC", 1:n_components)
   
   # Find elbo point
   # 1. raw eigenvalues
@@ -107,7 +107,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
     # leaf_encoding = leaf_encoding,
     data_rf = data_rf,
     features = features,
-    features_mixed = features_mixed,
+    #features_mixed = features_mixed,
     explained_variance = svd_result$d^2 / sum(svd_result$d^2),
     scree = gg,
     elbow = elbow,

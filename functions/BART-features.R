@@ -92,26 +92,28 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
   }
   if (verbose) print("Finished all samples")
   kernel_post_f = kernel_post + cov(t(muhat))
+  if (verbose) print("Finished all BART kernels")
   return(list(kernel = kernel, kernel_post_f = kernel_post_f, kernel_post=kernel_post))
 }
 
 
 pca_bart <- function(kernel, data, X, n_components = 10, verbose = FALSE) {
+  print("Starting BART PCA")
   K <- as.matrix(kernel)
   svd_result <- irlba(K, nv = n_components, maxit = 2000, verbose = F)
   if (verbose) print("First BART PCA finished")
   # Scale by square root of singular values
-  features <- svd_result$u %*% diag(svd_result$d) %>% data.frame()
+  features <- svd_result$u %*% diag(sqrt(svd_result$d)) %>% data.frame()
   names(features) <- paste0("PC", 1:n_components)
   data_bart <- cbind(data, features)
   
-  Xs <- scale(X)
-  K_mixed <- K + Xs %*% t(Xs)
-  svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
-  if (verbose) print("Second BART PCA finished")
-  # Scale by square root of singular values
-  features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
-  names(features_mixed) <- paste0("PC", 1:n_components)
+  # Xs <- scale(X)
+  # K_mixed <- K + Xs %*% t(Xs)
+  # svd_result_mixed <- irlba(K_mixed, nv = n_components, maxit = 2000, verbose = F)
+  # if (verbose) print("Second BART PCA finished")
+  # # Scale by square root of singular values
+  # features_mixed <- svd_result_mixed$u %*% diag(svd_result_mixed$d) %>% data.frame()
+  # names(features_mixed) <- paste0("PC", 1:n_components)
   
   # Find elbo point
   # 1. raw eigenvalues
@@ -175,7 +177,7 @@ pca_bart <- function(kernel, data, X, n_components = 10, verbose = FALSE) {
     # leaf_encoding = leaf_encoding,
     data_bart = data_bart,
     features = features,
-    features_mixed = features_mixed,
+    #features_mixed = features_mixed,
     explained_variance = svd_result$d^2 / sum(svd_result$d^2),
     scree = gg,
     elbow = elbow,
