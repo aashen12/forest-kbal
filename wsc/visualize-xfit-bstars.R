@@ -1,0 +1,291 @@
+# --- Packages ---
+library(dplyr)
+library(ggplot2)
+
+setwd("~/Desktop/BalWeights/forest-kbal/wsc")
+load("results/wsc-math-xfit.RData")
+
+
+full.df <- do.call(rbind, out)
+
+# full.df$repeat_num <- rep(1:5, rep(22, 5)) 
+
+dim(full.df)
+
+K <- max(full.df$id)
+
+
+
+results.df <- full.df %>% 
+  dplyr::mutate(
+    nc = stringr::str_replace_all(feat_rep, "\\D+", ""),
+    feat_rep = stringr::str_replace_all(feat_rep, "\\d+", "") %>% stringr::str_remove("_$")
+  ) %>% 
+  dplyr::relocate(nc, .after = "feat_rep") %>% 
+  dplyr::group_by(est, feat_rep, nc, trans) %>% 
+  dplyr::summarise(
+    est.att = mean(est.att),
+    se.xfit = sqrt(sum(se^2)) / K,
+    elbo_rf = mean(elbo_rf),
+    elbo_bart = mean(elbo_bart),
+    .groups = "drop" # This ensures the output is not a grouped data frame
+  ) %>% 
+  dplyr::mutate(
+    lcl = est.att - 1.96 * se.xfit,
+    ucl = est.att + 1.96 * se.xfit
+  ) %>% 
+  dplyr::ungroup()
+
+results.df$nc <- as.numeric(results.df$nc)
+
+head(results.df)
+
+full.df %>% group_by(trans) %>% 
+  summarise(elbo_rf = mean(elbo_rf),
+            elbo_bart = mean(elbo_bart))
+
+
+text_size = 25; y_lim = c(0.5, 1.5)
+outcome <- "math"
+
+raw0_lines <- results.df %>%
+  dplyr::filter(feat_rep == "raw") %>%
+  dplyr::select(est, trans, raw0_est = est.att)
+
+rf0_lines <- results.df %>% 
+  filter(est == "rf", feat_rep == "raw") %>% 
+  dplyr::select(est, trans, feat_rep, rf0_est = est.att)
+
+bench_val <- if (outcome == "math") 0.79 else 2.18
+
+df_plot <- results.df %>%
+  dplyr::filter(est == "bal.wgt") %>%
+  dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
+  dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
+  dplyr::filter(nc <= 7) %>% 
+  dplyr::mutate(
+    feat_group = dplyr::case_when(
+      feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
+      feat_rep %in% c("kbal_plus","rf_plus", "bart_plus") ~ "Kernel + Raw",
+      TRUE ~ NA_character_
+    ),
+    feat_group = factor(feat_group, levels = c("Kernel Only", "Kernel + Raw")),
+    family = dplyr::case_when(
+      grepl("kbal", feat_rep) ~ "KBal",
+      grepl("rf",   feat_rep) ~ "RF",
+      grepl("bart", feat_rep) ~ "BART",
+      TRUE ~ NA_character_
+    ),
+    family = factor(family, levels = c("KBal","RF", "BART"))
+  ) %>%
+  dplyr::filter(!is.na(feat_group), !is.na(family), feat_group == "Kernel + Raw") %>% 
+  dplyr::mutate(trans = ifelse(trans == "log", "log(1+x)", "Untransformed"))
+
+df_plot$trans <- factor(df_plot$trans, levels = c("Untransformed", "log(1+x)"))
+
+df_plot %>% 
+  ggplot2::ggplot(aes(x = nc, y = est.att,
+                    color = family, shape = family,
+                    group = interaction(family, feat_group))) +
+  geom_point(size = 7.6) +
+  geom_errorbar(aes(ymin = lcl, ymax = ucl), width = 0.9,
+                position = position_dodge(width = 0.05)) +
+  geom_line(linewidth = 0.8) +
+  # Baselines (mapped to color so they appear in the legend)
+  geom_hline(aes(yintercept = raw0_est, color = "Raw Covariates"),
+             linewidth = 1.0, alpha = 0.65, linetype = "dashed", inherit.aes = FALSE) +
+  geom_hline(aes(yintercept = bench_val, color = "Exp. Benchmark"),
+             inherit.aes = FALSE) +
+  facet_wrap(~ trans, scales = "free_y") +
+  coord_cartesian(ylim = y_lim) +
+  labs(y = "Estimated ATT", x = "Number of Principal Components",
+       title = NULL, color = "Features", shape = "Features") +
+  theme_bw() +
+  theme(text = element_text(size = text_size),
+        strip.text = element_text(size = text_size - 3, face = "bold"),
+        legend.position = "right") +
+  scale_color_manual(
+    name   = "Features",
+    values = c(
+      KBal             = "#d62728",
+      RF               = "#1f77b4",
+      BART = "#ff7f0e",
+      "Raw Covariates" = "black",
+      "Exp. Benchmark" = "firebrick2"
+    ),
+    labels = c(
+      KBal             = "Design Kernel",
+      RF               = "RF Kernel",
+      BART = "BART Kernel",
+      "Raw Covariates" = "Raw Covariates",
+      "Exp. Benchmark" = "Exp. Benchmark"
+    ),
+    breaks = c("KBal","RF", "BART", "Raw Covariates","Exp. Benchmark")
+  ) +
+  scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16)) +
+  guides(
+    shape = "none",  # hide duplicate shape legend
+    color = guide_legend(
+      override.aes = list(
+        shape    = c(17, 16, 16, NA, NA),              # points for KBal/RF; none for lines
+        linetype = c("blank", "blank", "blank", "dashed", "solid"),
+        linewidth= c(NA, NA, NA, 0.9, 0.9)
+      )
+    )
+  )
+
+
+
+full.df$est.att[full.df$feat_rep == "raw_0"] <- 1.008314
+full.df$se[full.df$feat_rep == "raw_0"] <- 0.3080238
+
+full.df %>% filter(trans == "log", feat_rep == "raw_0", est == "bal.wgt")
+
+bstars.df <- full.df %>% 
+  dplyr::mutate(
+    nc = stringr::str_replace_all(feat_rep, "\\D+", ""),
+    feat_rep = stringr::str_replace_all(feat_rep, "\\d+", "") %>% stringr::str_remove("_$")
+  ) %>% 
+  dplyr::relocate(nc, .after = "feat_rep") %>% 
+  dplyr::group_by(est, feat_rep, nc, trans) %>% 
+  dplyr::summarise(
+    est.att = mean(est.att),
+    se.xfit = sqrt(sum(se^2)) / K,
+    elbo_rf = mean(elbo_rf),
+    elbo_bart = mean(elbo_bart),
+    .groups = "drop" # This ensures the output is not a grouped data frame
+  ) %>% 
+  dplyr::mutate(
+    lcl = est.att - 1.96 * se.xfit,
+    ucl = est.att + 1.96 * se.xfit
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::filter(trans == "log", est == "bal.wgt", feat_rep == "raw" | nc == 6) %>% 
+  dplyr::mutate(
+    feat_group = dplyr::case_when(
+      feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
+      feat_rep %in% c("kbal_plus","rf_plus", "bart_plus") ~ "Kernel + Raw",
+      TRUE ~ NA_character_
+    ),
+    feat_group = factor(feat_group, levels = c("Kernel Only", "Kernel + Raw")),
+    family = dplyr::case_when(
+      grepl("kbal", feat_rep) ~ "KBal",
+      grepl("rf",   feat_rep) ~ "RF",
+      grepl("bart", feat_rep) ~ "BART",
+      grepl("raw", feat_rep) ~ "Raw",
+      TRUE ~ NA_character_
+    ),
+    family = factor(family, levels = c("KBal","RF", "BART", "Raw"))
+  )
+
+
+
+
+text_size = 30; y_lim = c(0.5, 1.5)
+
+bstars.df %>% 
+  mutate(
+    feat_rep = factor(
+      feat_rep,
+      levels = rev(c("raw",
+                     "kbal_only","kbal_plus",
+                     "bart_only","bart_plus",
+                     "rf_only","rf_plus"))
+    )
+  ) %>%
+  ggplot(aes(x = est.att, y = feat_rep, color = family)) +
+  geom_point(size = 10) +
+  geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.4, linewidth = 1.5) +
+  theme_minimal() +
+  geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 0.8, color = "black") + 
+  scale_color_manual(
+    name   = "Features",
+    values = c(
+      KBal             = "#d62728",
+      RF               = "#1f77b4",
+      BART             = "#ff7f0e",
+      Raw              = "gray33",
+      "Exp. Benchmark" = "firebrick2"
+    ),
+    labels = c(
+      KBal = "Design Kernel",
+      RF   = "RF Kernel",
+      BART = "BART Kernel",
+      Raw  = "Raw Covariates",
+      "Exp. Benchmark" = "Exp. Benchmark"
+    ),
+    breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
+  ) +
+  scale_y_discrete(
+    labels = c(
+      rf_plus    = "RF + Raw",
+      rf_only    = "RF Only",
+      kbal_plus  = "KBal + Raw",
+      kbal_only  = "KBal Only",
+      bart_plus  = "BART + Raw",
+      bart_only  = "BART Only",
+      raw        = "Raw"
+    )
+  ) +
+  labs(x = "Estimated ATT", y = "Feature Representation",
+       color = "Features") +
+  scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16, Raw = 15)) + 
+  theme(
+    text = element_text(size = text_size),
+    strip.text = element_text(size = text_size - 3, face = "bold"),
+    legend.position = "right"
+  ) + xlim(0.3, 1.7)
+
+
+# helper to keep your existing plot code intact
+plot_bstars_stage <- function(data, stage = c("raw", "kbal", "all")) {
+  stage <- match.arg(stage)
+  keep_levels <- switch(
+    stage,
+    raw  = c("raw"),
+    kbal = c("raw", "kbal_only", "kbal_plus"),
+    all  = c("raw", "kbal_only","kbal_plus","bart_only","bart_plus","rf_only","rf_plus")
+  )
+  
+  data %>%
+    dplyr::filter(feat_rep %in% keep_levels) %>%
+    dplyr::mutate(
+      feat_rep = factor(
+        feat_rep,
+        levels = rev(c("raw","kbal_only","kbal_plus","bart_only","bart_plus","rf_only","rf_plus"))
+      )
+    ) %>%
+    ggplot(aes(x = est.att, y = feat_rep, color = family)) +
+    geom_point(size = 8) +
+    geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.4, linewidth = 1.5) +
+    theme_bw() +
+    geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 0.8, color = "black") +
+    scale_color_manual(
+      name   = "Features",
+      values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33", "Exp. Benchmark"="firebrick2"),
+      labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel", Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
+      breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
+    ) +
+    scale_y_discrete(
+      labels = c(
+        rf_plus="RF + Raw", rf_only="RF Only",
+        kbal_plus="KBal + Raw", kbal_only="KBal Only",
+        bart_plus="BART + Raw", bart_only="BART Only",
+        raw="Raw"
+      )
+    ) +
+    labs(x="Estimated ATT", y="Feature Representation", color="Features") +
+    scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
+    theme(text = element_text(size = text_size),
+          strip.text = element_text(size = text_size - 3, face = "bold"),
+          legend.position = "right") +
+    xlim(0.3, 1.7)
+}
+
+# Use:
+p_raw  <- plot_bstars_stage(bstars.df, "raw")
+p_kbal <- plot_bstars_stage(bstars.df, "kbal")
+p_all  <- plot_bstars_stage(bstars.df, "all")
+
+
+
