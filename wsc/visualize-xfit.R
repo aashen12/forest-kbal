@@ -135,10 +135,11 @@ create_plot_wsc <- function(trans_level = c("none","log"),
 
 # create elbo plot
 
-
-
 create_plot_wsc("none")
 create_plot_wsc("log")
+
+
+head(results.df)
 
 
 

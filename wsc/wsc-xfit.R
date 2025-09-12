@@ -12,7 +12,7 @@ library(stochtree)
 library(foreach)
 library(doParallel)
 library(parallel)
-library(furrr)
+library(future.apply)
 library(randomForest)
 library(kbal)
 library(geepack)
@@ -47,11 +47,24 @@ data.pre <- data.pre %>% dplyr::rename(Z = m.treat)
 data.pre.log <- data.pre
 
 
+naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
+naive.dim
+
+# data.pre.log <- data.pre.log %>%
+#   mutate(across(
+#     .cols = where(is.numeric) & !any_of(c("Z", "Y")),
+#     .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
+#       log(.x + 1)
+#     } else {
+#       .x
+#     }
+#   ))
+
 data.pre.log <- data.pre.log %>%
   mutate(across(
     .cols = where(is.numeric) & !any_of(c("Z", "Y")),
-    .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
-      log(.x + 1)
+    .fns = ~ if (n_distinct(.x) >= 2 && min(.x, na.rm = TRUE) >= 0) {
+      exp(.x)
     } else {
       .x
     }
@@ -68,9 +81,16 @@ data.t <- data.pre %>% filter(Z == 1)
 data.c.log <- data.pre.log %>% filter(Z == 0)
 data.t.log <- data.pre.log %>% filter(Z == 1)
 
-n_repeat <- 10
+n_repeat <- 5
 
 set.seed(12)
+
+full.dat <- bind_rows(data.c.log, data.t.log)
+
+raw.all <- balancingWeights(data = full.dat, true_att = 0, feat_rep = "raw", 
+                            raw_covs = covs, kernel_covs = NULL, verbose = TRUE)
+
+raw.all
 
 
 single.fit <- function(pilot.dat, est.dat, treat.dat) {
@@ -140,9 +160,10 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   
   out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
   out.log <- run_cross_fit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
+  
   out_df <- bind_rows(out.notrans, out.log)
   out_df
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-save(out, file = "results/wsc-math-xfit.RData")
+save(out, file = "results/wsc-math-xfit-exp.RData")

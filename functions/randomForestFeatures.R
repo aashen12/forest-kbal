@@ -103,6 +103,8 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   K_df <- as.data.frame(K)
   names(K_df) <- paste0("PC", 1:ncol(K))
   
+  if (verbose) print("Finished RF Kernel")
+  
   return(list(
     # leaf_encoding = leaf_encoding,
     data_rf = data_rf,
