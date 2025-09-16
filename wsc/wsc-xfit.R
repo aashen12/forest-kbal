@@ -50,30 +50,31 @@ data.pre.log <- data.pre
 naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
 naive.dim
 
-# data.pre.log <- data.pre.log %>%
-#   mutate(across(
-#     .cols = where(is.numeric) & !any_of(c("Z", "Y")),
-#     .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
-#       log(.x + 1)
-#     } else {
-#       .x
-#     }
-#   ))
+log_trans <- FALSE
 
-data.pre.log <- data.pre.log %>%
-  mutate(across(
-    .cols = where(is.numeric) & !any_of(c("Z", "Y")),
-    .fns = ~ if (n_distinct(.x) >= 2 && min(.x, na.rm = TRUE) >= 0) {
-      exp(.x)
-    } else {
-      .x
-    }
-  ))
-
-
-head(data.pre.log)
-head(data.pre)
-
+if (log_trans == TRUE) {
+  # log transform
+  data.pre.log <- data.pre.log %>%
+    mutate(across(
+      .cols = where(is.numeric) & !any_of(c("Z", "Y")),
+      .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
+        log(.x + 1)
+      } else {
+        .x
+      }
+    ))
+} else {
+  # exp transform
+  data.pre.log <- data.pre.log %>%
+    mutate(across(
+      .cols = where(is.numeric) & !any_of(c("Z", "Y")),
+      .fns = ~ if (n_distinct(.x) >= 2 && min(.x, na.rm = TRUE) >= 0) {
+        exp(.x)
+      } else {
+        .x
+      }
+    ))
+}
 
 data.c <- data.pre %>% filter(Z == 0)
 data.t <- data.pre %>% filter(Z == 1)
@@ -81,7 +82,7 @@ data.t <- data.pre %>% filter(Z == 1)
 data.c.log <- data.pre.log %>% filter(Z == 0)
 data.t.log <- data.pre.log %>% filter(Z == 1)
 
-n_repeat <- 5
+n_repeat <- 10
 
 set.seed(12)
 
@@ -91,6 +92,14 @@ raw.all <- balancingWeights(data = full.dat, true_att = 0, feat_rep = "raw",
                             raw_covs = covs, kernel_covs = NULL, verbose = TRUE)
 
 raw.all
+
+out_filename <- paste0("logs/wsc-xfit-", format(Sys.time(), "%b-%d-%X-%Y"), ".txt")
+
+write("", out_filename, append = FALSE)   ##### ADDED (overwrite existing file)
+
+log_message <- paste("Starting WSC XFIT with log_trans", ifelse(log_trans == TRUE, "LOG", "EXP"), "\n")
+
+cat(log_message, file = out_filename, append = TRUE)
 
 
 single.fit <- function(pilot.dat, est.dat, treat.dat) {
@@ -161,9 +170,16 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
   out.log <- run_cross_fit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
   
+  log_message <- paste("Finished repeat number", i, "\n")
+  cat(log_message, file = out_filename, append = TRUE)
+  
   out_df <- bind_rows(out.notrans, out.log)
   out_df
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-save(out, file = "results/wsc-math-xfit-exp.RData")
+if (log_trans == TRUE) {
+  save(out, file = "results/wsc-math-xfit.RData")
+} else {
+  save(out, file = "results/wsc-math-xfit-exp.RData")
+}
