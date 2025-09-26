@@ -3,8 +3,8 @@ library(dplyr)
 library(ggplot2)
 
 setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-load("results/wsc-math-xfit.RData")
-
+load("results/wsc-vocab-xfit.RData")
+outcome <- "vocab"
 
 full.df <- do.call(rbind, out)
 
@@ -49,7 +49,13 @@ create_plot_wsc <- function(trans_level = c("none","log"),
                               text_size = 25,
                               y_lim = c(0.5, 1.5)) {
   trans_level <- match.arg(trans_level)
-  outcome <- "math"
+  
+  if (outcome == "math") {
+    y_lim = c(0.5, 1.5)
+  } else {
+    y_lim = c(1.5, 3)
+  }
+  
 
   raw0_lines <- results.df %>%
     dplyr::filter(feat_rep == "raw") %>%
@@ -138,6 +144,10 @@ create_plot_wsc <- function(trans_level = c("none","log"),
 create_plot_wsc("none")
 create_plot_wsc("log")
 
+
+
+c(2.18 - (1.96 * 0.19), 2.18 + (1.96 * 0.19))
+c(0.79 - (1.96 * 0.28), 0.79 + (1.96 * 0.28))
 
 head(results.df)
 

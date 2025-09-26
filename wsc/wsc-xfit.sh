@@ -3,7 +3,7 @@
 #SBATCH --mail-user=aashen@berkeley.edu
 #SBATCH --output=slurm_output/%x_%j.o
 #SBATCH --error=slurm_output/%x_%j.e
-#SBATCH -c 11
+#SBATCH -c 6
 #SBATCH -p epurdom
 
 Rscript wsc-xfit.R

@@ -1,6 +1,6 @@
 
 bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs, 
-                                 varsweep = 1, verbose = FALSE) {
+                                 p = 0.5, verbose = FALSE) {
   # l2 or inf
   #print(paste("True ATT:", round(true_att, 3)))
   if ("Z" %in% colnames(data)) {
@@ -13,13 +13,13 @@ bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs
     covs <- kernel_covs
     basis <- kernel_basis <- c(kernel_covs, "-1")
     X <- model.matrix(reformulate(kernel_basis), data)
-    X <- X / sqrt(1/varsweep * sum(apply(X, 2, var)))
+    X <- X / sqrt(sum(apply(X, 2, var)))
   } else if (is.null(kernel_covs)) {
     # raw covs only
     covs <- raw_covs
     basis <- raw_basis <- c(raw_covs, "-1")
     X <- scale(model.matrix(reformulate(raw_basis), data))
-    # X <- X / sqrt(1/varsweep * sum(apply(X, 2, var)))
+    # X <- X / sqrt(sum(apply(X, 2, var)))
   } else {
     # Raw + Kernel
     covs <- c(raw_covs, kernel_covs)
@@ -30,8 +30,8 @@ bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs
     X_raw <- X_raw / sqrt(sum(apply(X_raw, 2, var)))
     X_kernel <- model.matrix(reformulate(kernel_basis), data)
     # varsweep is the intended target variance
-    X_kernel <- X_kernel / sqrt(1/varsweep * sum(apply(X_kernel, 2, var)))
-    X <- cbind(X_raw, X_kernel)
+    X_kernel <- X_kernel / sqrt(sum(apply(X_kernel, 2, var)))
+    X <- cbind((1 - p) * X_raw, p *  X_kernel)
   }
   
   # balancing weights
@@ -130,11 +130,10 @@ bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs
   if (bias.bw > 3) {
     warning("Bias is large for balancing weights. Caution advised.")
   }
-  
   data.frame(est = "bal.wgt", "feat_rep" = feat_rep, 
              "bias" = bias.bw, rel.bias=rel.bias, "cvg" = coverage.bw, 
              "pbr" = pbr.bal.wt, "ess" = n.0, "est.att" = sr.att.bw, se = att.bw["SE"],
-             varsweep = varsweep)
+             varsweep = p, logit_p = log(p / (1-p)))
 }
 
 
@@ -198,14 +197,13 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
   # data_bart_mixed_whole <- bart.pca$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   
   
-  varsweeps <- c(10, 50, 100, 1000, 2500, 5000, 7500, 10000, 100000)#, orig_varsweep)
-  varsweep_vec <- c(1 / varsweeps, 1, varsweeps)
+  varsweep_vec <- seq(0, 1, by = 0.05)
   
   raw.scenarios <- expand.grid(fr = "raw", varsweep = NA)
   rf.scenarios <- rbind(expand.grid(fr = c("rf_plus"), varsweep = varsweep_vec), 
-                        expand.grid(fr = c("rf_only"), varsweep = varsweep_vec))
+                        expand.grid(fr = c("rf_only"), varsweep = NA))
   bart.scenarios <- rbind(expand.grid(fr = c("bart_plus"), varsweep = varsweep_vec), 
-                          expand.grid(fr = c("bart_only"), varsweep = varsweep_vec))
+                          expand.grid(fr = c("bart_only"), varsweep = NA))
   
   ### Run the actual simulation ###
   scenarios <- rbind(raw.scenarios, rf.scenarios)#, bart.scenarios)#, kbal.scenarios)
@@ -255,7 +253,7 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
     # compute ATT, balance metrics, error metrics, and so forth for each estimator 
     
     bw <- bal_weights_varsweep(data = dataset, true_att = treat.true, feat_rep = feat_rep, 
-                           raw_covs = raw_covs, kernel_covs = kernel_covs, varsweep = varsweep,
+                           raw_covs = raw_covs, kernel_covs = kernel_covs, p = varsweep,
                            verbose = FALSE) # simplex
     
     list(bw = bw, elbo_rf = elbo_rf, elbo_bart = NA)

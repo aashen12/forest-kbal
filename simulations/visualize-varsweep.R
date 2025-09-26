@@ -8,7 +8,7 @@ rm(list=ls())
 ww <- 20 # plot width
 hh <- 8 # plot height
 
-load("results/varsweep-5000-Sep-17-2025.RData")
+load("results/varsweep-2000-Sep-24-2025.RData")
 
 unique(scenarios$feat_rep)
 
@@ -24,22 +24,25 @@ df <- scenarios %>%
     feat_rep = str_remove(feat_rep, rm_tail)        # drop the trailing _<number>
   )
 
-df$varsweep <- ifelse(is.na(df$varsweep), -5, df$varsweep)
+df$varsweep
+df$logit_p <- round(df$logit_p, 2)
 
-unique(df$varsweep)
+
+unique(df$logit_p)
 
 library(dplyr)
 
 # make ordered factor: smallest -> largest
-levs  <- sort(unique(df$varsweep))
-labs  <- ifelse(levs == -5, "NA", format(levs, scientific = TRUE, digits = 3))
+levs  <- sort(unique(df$logit_p))
+labs  <- levs #ifelse(levs == -5, "NA", format(levs, scientific = TRUE, digits = 3))
 
 df <- df %>%
-  mutate(varsweep = factor(varsweep, levels = levs, labels = labs))
+  mutate(logit_p = factor(logit_p, levels = levs, labels = labs),
+         varsweep = factor(varsweep, levels = sort(unique(varsweep)), labels = sort(unique(varsweep))))
 
 
 df_plot <- df %>% 
-  group_by(est, feat_rep, varsweep) %>% 
+  group_by(est, feat_rep, logit_p, varsweep) %>% 
   dplyr::summarise(
     avg_bias = mean(abs(bias)),
     avg_rel_bias = mean(abs(rel.bias)),
@@ -77,17 +80,27 @@ df_plot <- df %>%
                               kbal_only = "KBal Feats",
                               kbal_plus = "KBal Feats + Raw Covs"))
 
+
 df_plot %>% 
-  filter(feat_rep != "raw_NA") %>% 
-  ggplot(aes(x = varsweep, y = avg_rel_bias, color = feat_rep)) + 
-  geom_point(size = 8, alpha = 0.9) +
-  theme_bw() + 
-  geom_hline(yintercept = df_plot$avg_rel_bias[df_plot$feat_rep == "raw_NA"], linetype = "solid", color = "red") +
-  theme(text = element_text(size = 20),
-        axis.text.x = element_text(angle = 90, vjust = 0.1, hjust = 0.2)) +
-  scale_color_manual(values = c(rf_only = "blue", rf_plus = "seagreen")) + 
-  labs(x = "Variance Importance Term (increasing left to right)", 
-       y = "Average Relative Bias", 
-       color = "Feature Set")
+  filter(!feat_rep %in% c("raw_NA", "rf_only_NA")) %>% 
+  ggplot(aes(x = varsweep, y = avg_rel_bias)) +
+  geom_point(aes(color = "RF + Raw"), size = 8, alpha = 0.9) +
+  theme_bw() +
+  geom_hline(aes(yintercept = df_plot$avg_rel_bias[df_plot$feat_rep == "raw_NA"],
+                 color = "Raw Covs", linetype = "Raw Covs")) +
+  geom_hline(aes(yintercept = df_plot$avg_rel_bias[df_plot$feat_rep == "rf_only_NA"],
+                 color = "RF Only", linetype = "RF Only")) +
+  theme(text = element_text(size = 20)) +
+  scale_color_manual(
+    values = c("RF + Raw" = "seagreen", "Raw Covs" = "red", "RF Only" = "blue"),
+    breaks = c("RF + Raw", "Raw Covs", "RF Only"),
+    name = "Feature Set"
+  ) +
+  scale_linetype_manual(
+    values = c("Raw Covs" = "solid", "RF Only" = "solid"),
+    guide = "none"   # <-- remove the extra legend
+  ) +
+  labs(x = "Relative importance of kernel features",
+       y = "Average Relative Bias")
 
 

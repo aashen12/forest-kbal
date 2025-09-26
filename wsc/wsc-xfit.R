@@ -30,10 +30,22 @@ source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-data.obs$Y <- data.obs$mathPost
 
-data.pre <- data.obs
-data.pre$std_math <- scale(data.pre$mathPost)
+outcome <- "math"
+
+if (outcome == "math") {
+  data.obs$Y <- data.obs$mathPost
+  data.pre <- data.obs
+  data.pre$std_math <- scale(data.pre$mathPost)
+  data.pre <- data.pre %>% dplyr::rename(Z = m.treat)
+} else if (outcome == "vocab") {
+  data.obs$Y <- data.obs$vocabPost
+  data.pre <- data.obs
+  data.pre$std_math <- scale(data.pre$vocabPost)
+  data.pre <- data.pre %>% dplyr::rename(Z = v.treat)
+}
+
+
 
 covs <- c(
   "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
@@ -42,15 +54,12 @@ covs <- c(
   "mathPre"
 )
 
-
-data.pre <- data.pre %>% dplyr::rename(Z = m.treat)
 data.pre.log <- data.pre
-
 
 naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
 naive.dim
 
-log_trans <- FALSE
+log_trans <- TRUE
 
 if (log_trans == TRUE) {
   # log transform
@@ -82,7 +91,7 @@ data.t <- data.pre %>% filter(Z == 1)
 data.c.log <- data.pre.log %>% filter(Z == 0)
 data.t.log <- data.pre.log %>% filter(Z == 1)
 
-n_repeat <- 10
+n_repeat <- 5
 
 set.seed(12)
 
@@ -97,9 +106,7 @@ out_filename <- paste0("logs/wsc-xfit-", format(Sys.time(), "%b-%d-%X-%Y"), ".tx
 
 write("", out_filename, append = FALSE)   ##### ADDED (overwrite existing file)
 
-log_message <- paste("Starting WSC XFIT with log_trans", ifelse(log_trans == TRUE, "LOG", "EXP"), "\n")
 
-cat(log_message, file = out_filename, append = TRUE)
 
 
 single.fit <- function(pilot.dat, est.dat, treat.dat) {
@@ -158,7 +165,13 @@ run_cross_fit <- function(data.c1, data.c2, treat.dat, trans, id = 999) {
 numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
 plan(multisession, workers = numCores)
 
+log_message <- paste("Starting WSC XFIT with log_trans", ifelse(log_trans == TRUE, "LOG", "EXP"), "\n")
+cat(log_message, file = out_filename, append = TRUE)
+
 out <- parallel::mclapply(1:n_repeat, function(i) {
+  log_message <- paste("Starting repeat number", i, "at", Sys.time(), "\n")
+  cat(log_message, file = out_filename, append = TRUE)
+  
   sample_split <- sample(nrow(data.c), round(0.5 * nrow(data.c)))
   
   data.c1 <- data.c[sample_split, ]
@@ -178,8 +191,16 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-if (log_trans == TRUE) {
-  save(out, file = "results/wsc-math-xfit.RData")
-} else {
-  save(out, file = "results/wsc-math-xfit-exp.RData")
+if (outcome == "math") {
+  if (log_trans == TRUE) {
+    save(out, file = "results/wsc-math-xfit.RData")
+  } else {
+    save(out, file = "results/wsc-math-xfit-exp.RData")
+  }
+} else if (outcome == "vocab") {
+  if (log_trans == TRUE) {
+    save(out, file = "results/wsc-vocab-xfit.RData")
+  } else {
+    save(out, file = "results/wsc-vocab-xfit-exp.RData")
+  }
 }

@@ -71,7 +71,16 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   X <- scale(X_unscaled)
   kbal_objs <- lapply(1:length(nc_rf), function(i) {
     nc <- nc_rf[i]
-    kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE)
+    if (simulation == TRUE) {
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
+                             mixed_data = FALSE)
+    } else {
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
+                             mixed_data = TRUE, 
+                             cat_columns = c("female", "white", "black", "asian", "hisp", "married",
+                                             "collegeS", "collegeM", "collegeD", "calc",
+                                             "mathLike", "income"))
+    }
     data_kbal_only <-  data.frame(
       kbal_obj$svdK$u[, 1:nc] %*% diag(sqrt(kbal_obj$svdK$d[1:nc]))
     )
