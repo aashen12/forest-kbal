@@ -49,20 +49,6 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   data_rf_K <- rf_obj$K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   ##############################################################################
   
-  ############################# Extract BART Kernel Features #################################
-  if (verbose) print("Starting BART Kernel")
-  # bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus", "bart_mixed"), ncomp = nc_bart)
-  bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
-  bart.scenarios <- bart.scenarios.partial
-  bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
-  K_generic <- bart_obj$kernel
-  bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
-                       n_components = max(nc_bart))
-  elbo_bart <- bart.pca$elbow
-  data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  data_bart_plus_whole <- bart.pca$data_bart
-  # data_bart_mixed_whole <- bart.pca$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  
   ############################# Extract Gaussian Kernel Features #################################
   if (verbose) print("Starting Kbal Kernel")
   kbal.scenarios <- expand.grid(fr = c("kbal_only", "kbal_plus"), ncomp = nc_rf)
@@ -72,8 +58,10 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   kbal_objs <- lapply(1:length(nc_rf), function(i) {
     nc <- nc_rf[i]
     if (simulation == TRUE) {
+      sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
+      print(paste("Sim2:", sim2))
       kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
-                             mixed_data = FALSE)
+                             mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
     } else {
       kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
                              mixed_data = TRUE, 
@@ -97,6 +85,20 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   names(kbal_objs) <- paste0("kbal_", nc_rf)
   if (verbose) print("KBal Finished!")
   ##############################################################################
+  
+  ############################# Extract BART Kernel Features #################################
+  if (verbose) print("Starting BART Kernel")
+  # bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus", "bart_mixed"), ncomp = nc_bart)
+  bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
+  bart.scenarios <- bart.scenarios.partial
+  bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
+  K_generic <- bart_obj$kernel
+  bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
+                       n_components = max(nc_bart))
+  elbo_bart <- bart.pca$elbow
+  data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  data_bart_plus_whole <- bart.pca$data_bart
+  # data_bart_mixed_whole <- bart.pca$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   
   raw.scenarios <- expand.grid(fr = "raw", ncomp = 0)
   ### Run the actual simulation ###

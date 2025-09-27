@@ -95,7 +95,9 @@ run_scenario = function() {
     bdat.obj <- make_data(n = 1000, sig.ep = overlap)
     bdat <- bdat.obj$out.df
     
-    pilot.dat.obj <- make_data(n = 1000, sig.ep = overlap) # 1000 typically
+    pilot.dat.obj <- make_data(1000, sig.ep = overlap) # 1000 typically
+    
+    # keep the first 500 rows
     pilot.dat <- pilot.dat.obj$out.df %>% dplyr::filter(Z == 0)
     
     true.att.bdat <- bdat.obj$true.att
