@@ -53,13 +53,14 @@ covs <- c(
   "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
   "mathPre"
 )
+length(covs)
 
 data.pre.log <- data.pre
 
 naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
 naive.dim
 
-log_trans <- TRUE
+log_trans <- FALSE
 
 if (log_trans == TRUE) {
   # log transform

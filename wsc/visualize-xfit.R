@@ -3,8 +3,8 @@ library(dplyr)
 library(ggplot2)
 
 setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-load("results/wsc-vocab-xfit.RData")
-outcome <- "vocab"
+load("results/wsc-math-xfit-exp.RData")
+outcome <- "math"
 
 full.df <- do.call(rbind, out)
 
