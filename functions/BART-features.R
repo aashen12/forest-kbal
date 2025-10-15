@@ -26,6 +26,7 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
       "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
       "mathPre"
     )
+    covs <- names(train_con)[!names(train_con) %in% c("Z", "Y")]
     X_train  <- train_con %>% dplyr::select(all_of(covs))
     #X_source <- test_con  %>% dplyr::select(all_of(covs))
     X_target <- target %>% dplyr::select(all_of(covs))

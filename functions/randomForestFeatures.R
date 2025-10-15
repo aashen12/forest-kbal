@@ -13,7 +13,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   
   N <- nrow(terminal_nodes)
   n_trees <- ncol(terminal_nodes)
-  
+
   # build the kernel by counting leaf‐agreements
   K <- matrix(0, N, N)
   for (tree_idx in seq_len(n_trees)) {
@@ -67,7 +67,7 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
     which.max(dists)
   }
   
-  elbow <- find_elbow(eigs_raw)
+  elbow <- find_elbow(y = eigs_raw)
   
   # 3. build data.frame for ggplot
   pc_df <- data.frame(

@@ -21,13 +21,14 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
       "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
       "mathPre"
     )
+    covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
   }
   
   #### Generate Random Forest features #####
   if (simulation) {
     nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- nc_bart <- 2:10
+    nc_rf <- nc_bart <- 2:12
   }
   if (verbose) print("Starting RF Kernel")
   # rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus", "rf_mixed"), ncomp = nc_rf)
@@ -60,14 +61,18 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     if (simulation == TRUE) {
       sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
       print(paste("Sim2:", sim2))
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
     } else {
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE, 
-                             mixed_data = TRUE, 
-                             cat_columns = c("female", "white", "black", "asian", "hisp", "married",
-                                             "collegeS", "collegeM", "collegeD", "calc",
-                                             "mathLike", "income"))
+      # kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+      #                        mixed_data = TRUE,
+      #                        cat_columns = c("female", "white", "black", "asian", "hisp", "married",
+      #                                        "collegeS", "collegeM", "collegeD", "calc",
+      #                                        "mathLike", "income"))
+
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+                             mixed_data = TRUE,
+                             cat_columns = c("black", "hisp", "married", "nodegr"))
     }
     data_kbal_only <-  data.frame(
       kbal_obj$svdK$u[, 1:nc] %*% diag(sqrt(kbal_obj$svdK$d[1:nc]))
@@ -92,7 +97,12 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
   bart.scenarios <- bart.scenarios.partial
   bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
-  K_generic <- bart_obj$kernel
+  if (simulation == TRUE) {
+    # K_generic <- bart_obj$kernel
+    K_generic <- bart_obj$kernel_post_f
+  } else {
+    K_generic <- bart_obj$kernel_post
+  }
   bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
                        n_components = max(nc_bart))
   elbo_bart <- bart.pca$elbow

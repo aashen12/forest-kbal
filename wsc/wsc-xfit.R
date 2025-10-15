@@ -57,6 +57,8 @@ length(covs)
 
 data.pre.log <- data.pre
 
+table(data.pre$Z)
+
 naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
 naive.dim
 

@@ -5,8 +5,17 @@ library(ggplot2)
 rm(list = ls())
 
 setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-#load("results/wsc-math-xfit.RData")
-load("results/wsc-math-xfit-exp.RData")
+
+transform <- "exp"
+
+
+if (transform == "exp") {
+  load("results/wsc-math-xfit-exp.RData")
+} else if (transform == "log") {
+  load("results/wsc-math-xfit.RData")
+}
+
+
 
 
 full.df <- do.call(rbind, out)
@@ -14,6 +23,8 @@ full.df <- do.call(rbind, out)
 # full.df$repeat_num <- rep(1:5, rep(22, 5)) 
 
 dim(full.df)
+
+head(full.df)
 
 K <- max(full.df$id)
 
@@ -48,7 +59,7 @@ full.df %>% group_by(trans) %>%
             elbo_bart = mean(elbo_bart))
 
 
-text_size = 25; y_lim = c(0.5, 1.5)
+text_size = 18; y_lim = c(0.5, 1.5)
 outcome <- "math"
 
 raw0_lines <- results.df %>%
@@ -65,7 +76,7 @@ df_plot <- results.df %>%
   dplyr::filter(est == "bal.wgt") %>%
   dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
   dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
-  dplyr::filter(nc <= 7) %>% 
+  dplyr::filter(nc <= 20) %>% 
   dplyr::mutate(
     feat_group = dplyr::case_when(
       feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
@@ -82,11 +93,11 @@ df_plot <- results.df %>%
     family = factor(family, levels = c("KBal","RF", "BART"))
   ) %>%
   dplyr::filter(!is.na(feat_group), !is.na(family), feat_group == "Kernel + Raw") %>% 
-  dplyr::mutate(trans = ifelse(trans == "log", "log(1+x)", "Untransformed"))
+  dplyr::mutate(trans = ifelse(trans == "log", ifelse(transform == "log", "Logarithmic", "Exponential"), "Untransformed"))
 
-df_plot$trans <- factor(df_plot$trans, levels = c("Untransformed", "log(1+x)"))
+df_plot$trans <- factor(df_plot$trans, levels = c("Untransformed", ifelse(transform == "log", "Logarithmic", "Exponential")))
 
-df_plot %>% 
+p.full <- df_plot %>% 
   ggplot2::ggplot(aes(x = nc, y = est.att,
                       color = family, shape = family,
                       group = interaction(family, feat_group))) +
@@ -98,6 +109,7 @@ df_plot %>%
   geom_hline(aes(yintercept = raw0_est, color = "Raw Covariates"),
              linewidth = 1.0, alpha = 0.65, linetype = "dashed", inherit.aes = FALSE) +
   geom_hline(aes(yintercept = bench_val, color = "Exp. Benchmark"),
+             linewidth = 0.7,
              inherit.aes = FALSE) +
   facet_wrap(~ trans, scales = "free_y") +
   coord_cartesian(ylim = y_lim) +
@@ -114,7 +126,7 @@ df_plot %>%
       RF               = "#1f77b4",
       BART = "#ff7f0e",
       "Raw Covariates" = "black",
-      "Exp. Benchmark" = "firebrick2"
+      "Exp. Benchmark" = "#2A873D"
     ),
     labels = c(
       KBal             = "Design Kernel",
@@ -138,6 +150,17 @@ df_plot %>%
   )
 
 
+p.full
+
+ggsave(
+  filename = paste0("paper-figs/wsc_full_", transform, ".pdf"),
+  plot     = p.full,
+  device   = "pdf",      # base grDevices::pdf()
+  width    = 11,          # double-column width
+  height   = 6,        # balanced height
+  units    = "in",
+  useDingbats = FALSE
+)
 
 
 # full.df$est.att[full.df$feat_rep == "raw_0"] <- 1.008314
@@ -271,4 +294,112 @@ ggsave(
 )
 
 
+### PBR/ESS plots ###
+
+metrics.df <- full.df %>% 
+  dplyr::mutate(
+    nc = stringr::str_replace_all(feat_rep, "\\D+", ""),
+    feat_rep = stringr::str_replace_all(feat_rep, "\\d+", "") %>% stringr::str_remove("_$")
+  ) %>% 
+  dplyr::relocate(nc, .after = "feat_rep") %>% 
+  dplyr::group_by(est, feat_rep, nc, trans) %>% 
+  dplyr::summarise(
+    pbr = mean(pbr),
+    ess = mean(ess),
+    elbo_rf = mean(elbo_rf),
+    elbo_bart = mean(elbo_bart),
+    .groups = "drop" # This ensures the output is not a grouped data frame
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::filter(est == "bal.wgt") %>% 
+  dplyr::mutate(encoding = paste(feat_rep, trans, sep = "_")) %>%
+  dplyr::mutate(
+    feat_group = dplyr::case_when(
+      encoding %in% c("kbal_only_log", "rf_only_log", "bart_only_log") ~ "Kernel Only (transformed)",
+      encoding %in% c("kbal_plus_log","rf_plus_log", "bart_plus_log") ~ "Kernel + Raw (transformed)",
+      encoding %in% c("kbal_only_none", "rf_only_none", "bart_only_none") ~ "Kernel Only (untransformed)",
+      encoding %in% c("kbal_plus_none","rf_plus_none", "bart_plus_none") ~ "Kernel + Raw (untransformed)",
+      TRUE ~ NA_character_
+    ),
+    feat_group = factor(feat_group, levels = c("Kernel Only (untransformed)", "Kernel + Raw (untransformed)", "Kernel Only (transformed)", "Kernel + Raw (transformed)")),
+    family = dplyr::case_when(
+      grepl("kbal", feat_rep) ~ "KBal",
+      grepl("rf",   feat_rep) ~ "RF",
+      grepl("bart", feat_rep) ~ "BART",
+      grepl("raw", feat_rep) ~ "Raw",
+      TRUE ~ NA_character_
+    ),
+    family = factor(family, levels = c("KBal","RF", "BART", "Raw"))
+  )
+
+metrics.df$nc <- as.numeric(metrics.df$nc)
+metrics.df$nc <- factor(metrics.df$nc)
+
+metrics.df <- metrics.df %>% mutate(trans = ifelse(trans == "none", "No Transformation", "Exponential Transformation"))
+metrics.df$trans <- factor(metrics.df$trans, levels = c("No Transformation", "Exponential Transformation"))
+
+
+table(metrics.df$nc)
+
+head(metrics.df)
+
+
+
+brks   <- c("KBal","RF","BART","Raw")
+lbls   <- c(KBal="Design Kernel", RF="RF Kernel",
+            BART="BART Kernel",   Raw="Raw Covariates")
+
+metrics.df %>%
+  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only","rf_K")) %>%
+  ggplot(aes(x = nc, y = pbr,
+             color = family, shape = family,
+             linetype = family,                       # map linetype too
+             group = interaction(family, feat_group))) +
+  
+  geom_point(size = 5.6) +
+  geom_line(linewidth = 0.8) +
+  
+  geom_hline(
+    data = metrics.df %>% filter(feat_rep == "raw"),
+    aes(yintercept = pbr, color = family, linetype = family),
+    linewidth = 0.9, inherit.aes = FALSE
+  ) +
+  
+  theme_bw() +
+  facet_wrap(~ trans) +
+  
+  # --- unified legend: same name, breaks, labels across scales ---
+  scale_color_manual(name = "Feature Family",
+                     values = c(KBal="#d62728", RF="#1f77b4",
+                                BART="#ff7f0e", Raw="black"),
+                     breaks = brks, labels = lbls) +
+  scale_shape_manual(name = "Feature Family",
+                     values = c(KBal=17, RF=16, BART=16, Raw=NA),
+                     breaks = brks, labels = lbls) +
+  scale_linetype_manual(name = "Feature Family",
+                        values = c(KBal="solid", RF="solid",
+                                   BART="solid", Raw="dashed"),
+                        breaks = brks, labels = lbls) +
+  guides(
+    # single combined legend appearance
+    color = guide_legend(override.aes = list(
+      shape    = c(17,16,16,NA),
+      linetype = c("solid","solid","solid","dashed"),
+      linewidth= c(0.8,0.8,0.8,0.9)
+    )),
+    shape = "none",      # don't make separate shape-only legend
+    linetype = "none"    # don't make separate linetype-only legend
+  ) + theme(text = element_text(size = 18))
+
+                        
+metrics.df %>%
+  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only","rf_K"), nc == 5)
+
+metrics.df %>%
+  filter(feat_rep ==  "raw")
+
+  
+  
+  
+  
 
