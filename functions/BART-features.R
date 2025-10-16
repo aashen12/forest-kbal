@@ -15,17 +15,20 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
   test_trt <- test %>% filter(Z == 1)
   target = test
 
+  
+  # this chunk just tells the function what X is (depends on whether we are simulating or using real data)
   if (simulation) {
+    # covs <- names(train_con)[!names(train_con) %in% c("Z", "Y")]
     X_train  <- train_con %>% dplyr::select(starts_with('X'))
     #X_source <- test_con  %>% dplyr::select(starts_with('X'))
     X_target <- target %>% dplyr::select(starts_with('X'))
   } else {
-    covs <- c(
-      "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
-      "collegeS", "collegeM", "collegeD", "calc", "logBooks", "mathLike", "big5O", "big5C",
-      "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
-      "mathPre"
-    )
+    # covs <- c(
+    #   "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
+    #   "collegeS", "collegeM", "collegeD", "calc", "logBooks", "mathLike", "big5O", "big5C",
+    #   "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
+    #   "mathPre"
+    # )
     covs <- names(train_con)[!names(train_con) %in% c("Z", "Y")]
     X_train  <- train_con %>% dplyr::select(all_of(covs))
     #X_source <- test_con  %>% dplyr::select(all_of(covs))
