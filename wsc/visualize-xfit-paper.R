@@ -72,30 +72,39 @@ rf0_lines <- results.df %>%
 
 bench_val <- if (outcome == "math") 0.79 else 2.18
 
+kbal.only.df <- results.df %>% 
+  filter(est == "kbal.bw", !is.na(est.att)) %>% 
+  mutate(est = "bal.wgt", feat_rep = "kebal_only")
+
 df_plot <- results.df %>%
-  dplyr::filter(est == "bal.wgt") %>%
+  dplyr::filter(est %in% c("bal.wgt")) %>%
+  #dplyr::bind_rows(kbal.only.df) %>%
   dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
   dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
   dplyr::filter(nc <= 20) %>% 
   dplyr::mutate(
     feat_group = dplyr::case_when(
       feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
-      feat_rep %in% c("kbal_plus","rf_plus", "bart_plus") ~ "Kernel + Raw",
+      feat_rep %in% c("kbal_plus","rf_plus", "bart_plus", "kebal_only") ~ "Kernel + Raw",
       TRUE ~ NA_character_
     ),
     feat_group = factor(feat_group, levels = c("Kernel Only", "Kernel + Raw")),
     family = dplyr::case_when(
       grepl("kbal", feat_rep) ~ "KBal",
+      grepl("kebal", feat_rep) ~ "KeBal",
       grepl("rf",   feat_rep) ~ "RF",
       grepl("bart", feat_rep) ~ "BART",
       TRUE ~ NA_character_
     ),
-    family = factor(family, levels = c("KBal","RF", "BART"))
+    family = factor(family, levels = c("KBal", "KeBal", "RF", "BART"))
   ) %>%
   dplyr::filter(!is.na(feat_group), !is.na(family), feat_group == "Kernel + Raw") %>% 
   dplyr::mutate(trans = ifelse(trans == "log", ifelse(transform == "log", "Logarithmic", "Exponential"), "Untransformed"))
 
 df_plot$trans <- factor(df_plot$trans, levels = c("Untransformed", ifelse(transform == "log", "Logarithmic", "Exponential")))
+
+
+num_frs <- length(unique(df_plot$feat_rep))
 
 p.full <- df_plot %>% 
   ggplot2::ggplot(aes(x = nc, y = est.att,
@@ -123,6 +132,7 @@ p.full <- df_plot %>%
     name   = "Features",
     values = c(
       KBal             = "#d62728",
+      KeBal = "#e377c2",
       RF               = "#1f77b4",
       BART = "#ff7f0e",
       "Raw Covariates" = "black",
@@ -130,14 +140,15 @@ p.full <- df_plot %>%
     ),
     labels = c(
       KBal             = "Design Kernel",
+      KeBal = "Entropy KBal",
       RF               = "RF Kernel",
       BART = "BART Kernel",
       "Raw Covariates" = "Raw Covariates",
       "Exp. Benchmark" = "Exp. Benchmark"
     ),
-    breaks = c("KBal","RF", "BART", "Raw Covariates","Exp. Benchmark")
+    breaks = c("KBal", "KeBal", "RF", "BART", "Raw Covariates","Exp. Benchmark")
   ) +
-  scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16)) +
+  scale_shape_manual(values = c(KBal = 17, Kebal = 17, RF = 16, BART = 16)) +
   guides(
     shape = "none",  # hide duplicate shape legend
     color = guide_legend(
@@ -153,7 +164,7 @@ p.full <- df_plot %>%
 p.full
 
 ggsave(
-  filename = paste0("paper-figs/wsc_full_", transform, ".pdf"),
+  filename = paste0("paper-figs/lalonde_full_", transform, ".pdf"),
   plot     = p.full,
   device   = "pdf",      # base grDevices::pdf()
   width    = 11,          # double-column width

@@ -72,12 +72,14 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
 
       kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = TRUE,
-                             cat_columns = c("black", "hisp", "married", "nodegr"))
+                             cat_columns = c("black", "hisp", "married", "u74", "u75", "nodegr", "educ"))
     }
+    kbal_only_weights <- kbal_obj$w
     data_kbal_only <-  data.frame(
       kbal_obj$svdK$u[, 1:nc] %*% diag(sqrt(kbal_obj$svdK$d[1:nc]))
     )
     names(data_kbal_only) <- paste0("PC", 1:nc)
+    data_kbal_only$kbal_weights <- kbal_only_weights
     var_exp <- kbal_obj$explained_variance
     data_kbal_plus <- cbind(data, data_kbal_only)
     ol <- list(
@@ -99,9 +101,9 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
   if (simulation == TRUE) {
     # K_generic <- bart_obj$kernel
-    K_generic <- bart_obj$kernel_post_f
+    K_generic <- bart_obj$kernel
   } else {
-    K_generic <- bart_obj$kernel_post
+    K_generic <- bart_obj$kernel
   }
   bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
                        n_components = max(nc_bart))
@@ -164,6 +166,25 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
       kernel_covs <- c(paste0("PC", 1:nc))
       input_covs <- c(raw_covs, kernel_covs)
       dataset <- kbal_objs[[paste0("kbal_", nc)]]$data_kbal_only
+      att_kbal <- with(dataset, mean(Y[treat==1]) - weighted.mean(Y[treat==0], w = kbal_weights[treat==0]))
+      bal.wt <- geeglm(Y ~ treat, data = dataset, std.err = 'san.se', 
+                       weights = kbal_weights, id=1:nrow(dataset),
+                       corstr="independence")
+      att.bw <- msm.out(bal.wt)
+      att.bw
+      sr.att.bw <- sum((dataset$treat -(1 - dataset$treat)*dataset$kbal_weights)*dataset$Y)/sum(dataset$treat)
+      sr.att.bw # singly robust
+      bias.bw <- sr.att.bw - treat.true
+      bias.bw
+      # ATT of ACIC-17 around 0.118
+      rel.bias <- compute_relative_bias(sr.att.bw, treat.true)
+      
+      coverage.bw <- (treat.true >= att.bw["lcl.treat"]) & (treat.true <= att.bw["ucl.treat"])
+      names(coverage.bw) <- NULL
+      
+      kbal.bw.df <- data.frame(est = "kbal.bw", "feat_rep" = feat_rep, 
+                 "bias" = bias.bw, rel.bias=rel.bias, "cvg" = coverage.bw, 
+                 "pbr" = NA, "ess" = NA, "est.att" = sr.att.bw, se = att.bw["SE"])
     } else if (fr == "kbal_plus") {
       raw_covs <- covs
       kernel_covs <- c(paste0("PC", 1:nc))
@@ -176,6 +197,15 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     bw <- balancingWeights(data = dataset, true_att = treat.true, feat_rep = feat_rep, 
                            raw_covs = raw_covs, kernel_covs = kernel_covs,
                            verbose = FALSE) # simplex
+    
+    if(fr %in% c("kbal_only")) {
+      kbal_bw <- kbal.bw.df
+    } else {
+      kbal_bw <- data.frame(est = "kbal.bw", "feat_rep" = feat_rep, 
+                            "bias" = NA, rel.bias=NA, "cvg" = NA, 
+                            "pbr" = NA, "ess" = NA, "est.att" = NA, se = NA)
+    }
+      
     
     ipw <- logisticIPW(data = dataset, true_att = treat.true, 
                        feat_rep = feat_rep, verbose = FALSE)
@@ -192,7 +222,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     
     
     list(bw = bw, ipw = ipw, 
-         rf = rf,
+         rf = rf, kbal_bw = kbal_bw,
          aug.l2 = aug.l2, aug.vanilla = aug.vanilla, elbo_rf = elbo_rf, elbo_bart = elbo_bart)
   })
   out

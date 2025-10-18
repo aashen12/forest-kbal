@@ -7,9 +7,11 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   # data: data frame or matrix of predictors (no response column)
   
   # extract terminal‐node IDs: an N × n_trees matrix
-  preds <- predict(model, newdata = as.data.frame(data), nodes = TRUE)
+  preds <- predict(model, newdata = as.data.frame(data), nodes = TRUE, proximity = TRUE)
   terminal_nodes <- attributes(preds)$nodes
   if (verbose) print("RF Terminal nodes extracted")
+  
+  K1 <- preds$proximity
   
   N <- nrow(terminal_nodes)
   n_trees <- ncol(terminal_nodes)
@@ -19,9 +21,18 @@ rf_kernel_matrix <- function(model, data, X, n_components, verbose = FALSE) {
   for (tree_idx in seq_len(n_trees)) {
     K <- K + (outer(terminal_nodes[, tree_idx], terminal_nodes[, tree_idx], "=="))
   }
-  
+
   # normalize
   K <- K / n_trees
+  
+  check <- K1 == K
+  
+  # print output of check to tell user if matrices are equal
+  if (all(check)) {
+    if (verbose) print("GOOD!. Proximity matrix matches leaf-agreement kernel matrix.")
+  } else {
+    if (verbose) print("Warning: Proximity matrix does not match leaf-agreement kernel matrix.")
+  }
   
   # preserve names if present
   if (!is.null(rownames(data))) {
