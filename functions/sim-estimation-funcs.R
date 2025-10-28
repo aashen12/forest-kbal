@@ -216,14 +216,18 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
 }
 
 
-logisticIPW <- function(data, true_att, feat_rep, verbose = FALSE) {
+logisticIPW <- function(data, true_att, feat_rep, covs, verbose = FALSE) {
   
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
       dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
   }
   
-  covs <- names(data)[!names(data) %in% c("Y", "treat")]
+  if (is.null(covs)) {
+    covs <- names(data)[!names(data) %in% c("Y", "treat")]
+  }
+  
+  # covs <- names(data)[!names(data) %in% c("Y", "treat")]
   basis <- c(covs, "-1")
   contains_rf_only <- grepl("only", feat_rep)
   X <- scale(model.matrix(reformulate(basis), data))
@@ -322,13 +326,15 @@ logisticIPW <- function(data, true_att, feat_rep, verbose = FALSE) {
 }
 
 
-outcomeRegression <- function(data, true_att, feat_rep, type = "ols", verbose = FALSE) {
+outcomeRegression <- function(data, true_att, feat_rep, type = "ols", covs, verbose = FALSE) {
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
       dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
   }
   
-  covs <- names(data)[!names(data) %in% c("Y", "treat")]
+  if (is.null(covs)) {
+    covs <- names(data)[!names(data) %in% c("Y", "treat")]
+  }
   covs <- c(covs, "-1")
   X <- scale(model.matrix(reformulate(covs), data))
   trt <- data$treat

@@ -1,4 +1,4 @@
-eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulation = TRUE) {
+eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, dataset = "soldiering") {
   
   data.c <- dat %>% filter(Z==0)
   data.t <- dat %>% filter(Z==1)
@@ -12,23 +12,58 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   data <- rbind(data.t, data.c)
   # gets rid of the training sample used to select interactions & nonlinear covariates
   
-  if (simulation) {
+  if (dataset == "simulation") {
     covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
-  } else {
+  } else if (dataset == "soldiering") {
+    # FILL IN FROM CONSEQUENCES PAPER
+    AC_vars <- grep("^A1[4-9]$|^A2[0-9]$|^C_(ach|lan|kit|pad|amo|oru|paj)$", 
+                    names(raw.data), value = TRUE)
+    ACG_vars <- grep("^A1[4-9]$|^A2[0-9]$|^C_(ach|lan|kit|pad|amo|oru|paj)$|^G[1-8]_", 
+                     names(raw.data), value = TRUE)
+    
+    ctrls <- c("fthr_ed0", "fthr_ed4", "fthr_ed7", "mthr_ed0", "mthr_ed4", "mthr_ed7",
+               "no_fthr96", "no_mthr96", "orphan96", "hh_fthr_frm", "hh_size96", 
+               "hh_size96_2", "hh_size96_3", "hh_size96_4", "hh_land", "hh_land_2", 
+               "hh_land_3", "hh_land_4", "hh_cattle", "hh_cattle_2", "hh_cattle_3", 
+               "hh_cattle_4", "hh_stock", "hh_stock_2", "hh_stock_3", "hh_stock_4", "hh_plow")
+    
+    ctrl_hh <- c("age", "hh_fthr_frm", "hh_size96", "hh_land", "landrich", 
+                 "hh_cattle", "hh_stock", "hh_plow")
+    
+    ctrl_i <- c("fthr_ed0", "fthr_ed", "mthr_ed0", "mthr_ed", "no_fthr96", 
+                "no_mthr96", "orphan96")
+    
+    
+    ## Covariates include geographical region, age in 1996, 
+    ### father’s education, mother’s education, whether the parents had died during 
+    ### or before 1996, whether the father is a farmer, and household size in 1996.
+    
+    ## AC: age, geog region
+    ## ctrl_i: parental education, orphan, no parent, father farmer
+    ## orphan96: orphan in 1996
+    ## hh_fthr_frm: father farmer
+    ## hh_size96: household size in 1996
+    
+    covs <- c(AC_vars, "fthr_ed", "mthr_ed", "no_fthr96", "no_mthr96", "hh_fthr_frm", "hh_size96")
+  } else if (dataset == "wsc") {
     covs <- c(
       "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
       "collegeS", "collegeM", "collegeD", "calc", "logBooks", "mathLike", "big5O", "big5C",
       "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
       "mathPre"
     )
+  } else if (dataset == "lalonde") {
+    covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
+  } else {
+    print("Dataset not recognized, defaulting to simulation covariates")
     covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
   }
   
   #### Generate Random Forest features #####
-  if (simulation) {
+  if (dataset == "simulation") {
     nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- nc_bart <- 2:12
+    nc_rf <- nc_bart <- 2:15
   }
   if (verbose) print("Starting RF Kernel")
   # rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus", "rf_mixed"), ncomp = nc_rf)
@@ -58,21 +93,28 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   X <- scale(X_unscaled)
   kbal_objs <- lapply(1:length(nc_rf), function(i) {
     nc <- nc_rf[i]
-    if (simulation == TRUE) {
+    if (dataset == "simulation") {
       sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
       print(paste("Sim2:", sim2))
       kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
-    } else {
-      # kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
-      #                        mixed_data = TRUE,
-      #                        cat_columns = c("female", "white", "black", "asian", "hisp", "married",
-      #                                        "collegeS", "collegeM", "collegeD", "calc",
-      #                                        "mathLike", "income"))
-
+    } else if (dataset == "lalonde") {
       kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = TRUE,
-                             cat_columns = c("black", "hisp", "married", "u74", "u75", "nodegr", "educ"))
+                             cat_columns = c("black", "hisp", "married", "u74", "u75", "nodegr", "educ")
+                             )
+    } else if (dataset == "wsc") {
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+                             mixed_data = TRUE,
+                             cat_columns = c("female", "white", "black", "asian", "hisp", "married",
+                                             "collegeS", "collegeM", "collegeD", "calc",
+                                             "mathLike", "income"))
+    } else if (dataset == "soldiering") {
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+                             mixed_data = TRUE,
+                             cat_columns = c(AC_vars, "no_fthr96", "no_mthr96", "fthr_ed", "mthr_ed", "hh_fthr_frm"))
+    } else {
+      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE)
     }
     kbal_only_weights <- kbal_obj$w
     data_kbal_only <-  data.frame(
@@ -98,13 +140,8 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
   # bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus", "bart_mixed"), ncomp = nc_bart)
   bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
   bart.scenarios <- bart.scenarios.partial
-  bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
-  if (simulation == TRUE) {
-    # K_generic <- bart_obj$kernel
-    K_generic <- bart_obj$kernel
-  } else {
-    K_generic <- bart_obj$kernel
-  }
+  bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, dataset = "soldiering", covs = covs)
+  K_generic <- bart_obj$kernel
   bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
                        n_components = max(nc_bart))
   elbo_bart <- bart.pca$elbow
@@ -120,6 +157,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     fr <- scenarios[i,1]
     nc <- scenarios[i,2]
     feat_rep <- paste(fr, nc, sep = "_")
+    # print(feat_rep)
     if (fr == "raw") {
       dataset <- data
       raw_covs <- covs
@@ -208,10 +246,10 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
       
     
     ipw <- logisticIPW(data = dataset, true_att = treat.true, 
-                       feat_rep = feat_rep, verbose = FALSE)
+                       feat_rep = feat_rep, covs = input_covs, verbose = FALSE)
     
-    rf <- outcomeRegression(data = dataset, true_att = treat.true, 
-                            feat_rep = feat_rep, type = "rf", verbose = FALSE)
+    # rf <- outcomeRegression(data = dataset, true_att = treat.true, 
+    #                         feat_rep = feat_rep, type = "rf", covs = input_covs, verbose = FALSE)
     
     aug.l2 <- augmentedBalWeights(data = dataset, true_att = treat.true, feat_rep = feat_rep, 
                                   raw_covs = raw_covs, kernel_covs = kernel_covs,
@@ -222,7 +260,8 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, simulatio
     
     
     list(bw = bw, ipw = ipw, 
-         rf = rf, kbal_bw = kbal_bw,
+         # rf = rf, 
+         kbal_bw = kbal_bw,
          aug.l2 = aug.l2, aug.vanilla = aug.vanilla, elbo_rf = elbo_rf, elbo_bart = elbo_bart)
   })
   out

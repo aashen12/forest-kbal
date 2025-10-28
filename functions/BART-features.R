@@ -5,19 +5,19 @@ library(rsample)
 library(irlba)
 library(kernlab)
 
-bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simulation = TRUE) {
+bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, dataset = "soldiering", covs) {
   # train: pilot sample of controls only
   # test: analysis sample of treated and control
   # no "source" distribution
   
-  train_con <- train %>% filter(Z == 0) 
-  test_con <- test %>% filter(Z == 0)
-  test_trt <- test %>% filter(Z == 1)
+  train_con <- train %>% dplyr::filter(Z == 0) 
+  test_con <- test %>% dplyr::filter(Z == 0)
+  test_trt <- test %>% dplyr::filter(Z == 1)
   target = test
 
   
   # this chunk just tells the function what X is (depends on whether we are simulating or using real data)
-  if (simulation) {
+  if (dataset == "simulation") {
     # covs <- names(train_con)[!names(train_con) %in% c("Z", "Y")]
     X_train  <- train_con %>% dplyr::select(starts_with('X'))
     #X_source <- test_con  %>% dplyr::select(starts_with('X'))
@@ -29,7 +29,6 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
     #   "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
     #   "mathPre"
     # )
-    covs <- names(train_con)[!names(train_con) %in% c("Z", "Y")]
     X_train  <- train_con %>% dplyr::select(all_of(covs))
     #X_source <- test_con  %>% dplyr::select(all_of(covs))
     X_target <- target %>% dplyr::select(all_of(covs))
@@ -43,10 +42,20 @@ bart_kernel_matrix <- function(train, test, seed = 1022, verbose = FALSE, simula
   sigma_leaf <- 1/num_trees
   
   mean_forest_params <- list(num_trees=num_trees, sigma2_leaf_init=sigma_leaf)
-  bart_model <- bart(X_train=X_train, y_train=y_train, 
-                     mean_forest_params = mean_forest_params,
-                     num_burnin=200, num_mcmc=1000, 
-                     general_params=list(random_seed=seed))
+  #return(X_train)
+  if (dataset == "soldiering") {
+    X_train <- as.matrix(X_train)
+    X_target <- as.matrix(X_target)
+    bart_model <- bart(X_train=X_train, y_train=y_train, 
+                       mean_forest_params = mean_forest_params,
+                       num_burnin=200, num_mcmc=1000, 
+                       general_params=list(random_seed=seed))
+  } else {
+    bart_model <- bart(X_train=X_train, y_train=y_train, 
+                       mean_forest_params = mean_forest_params,
+                       num_burnin=200, num_mcmc=1000, 
+                       general_params=list(random_seed=seed))
+  }
   
   if (verbose) print("BART model trained")
   
