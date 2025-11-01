@@ -82,7 +82,8 @@ sbw_osqp <- function(X, Z, tol, ...) {
 
 
 
-balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, verbose = FALSE) {
+balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, 
+                             att = TRUE, verbose = FALSE) {
   # l2 or inf
   #print(paste("True ATT:", round(true_att, 3)))
   if ("Z" %in% colnames(data)) {
@@ -116,10 +117,16 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
   # balancing weights
   l <- estimate_regularization(data, covs = covs)
   
-  bal_weights <- multilevel_qp(X, data$treat, Z = rep(1, nrow(data)), lambda = l, verbose= FALSE,
-                               exact_global = FALSE, scale_sample_size = FALSE)
-  data$wts <- pmax(bal_weights$weights, 0)
-  data$wts[data$treat == 1] <- 1
+  if (att == TRUE) {
+    bal_weights <- multilevel_qp(X, data$treat, Z = rep(1, nrow(data)), lambda = l, verbose= FALSE,
+                                 exact_global = FALSE, scale_sample_size = FALSE)
+    data$wts <- pmax(bal_weights$weights, 0)
+    data$wts[data$treat == 1] <- 1
+  } else {
+    bal_weights <- multilevel_ate_qp(X, data$treat, Z = rep(1, nrow(data)), lambda = l, verbose= FALSE,
+                                 exact_global = FALSE, scale_sample_size = FALSE)
+    data$wts <- pmax(bal_weights$weights, 0)
+  }
   
   if (verbose) {
     print("balancing weights estimated")
@@ -187,13 +194,6 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
   sr.att.bw <- sum((data$treat -(1 - data$treat)*data$wts)*data$Y)/sum(data$treat)
   sr.att.bw # singly robust
   
-  with(data, {
-    mean(Y[treat==1]) - sum(wts[treat==0] * Y[treat==0]) / sum(wts[treat==0])
-  })
-  
-  sum(data$wts[data$treat == 0])
-  sum(data$treat)
-  
   bias.bw <- sr.att.bw - true_att
   bias.bw
   # ATT of ACIC-17 around 0.118
@@ -216,7 +216,7 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, ve
 }
 
 
-logisticIPW <- function(data, true_att, feat_rep, covs, verbose = FALSE) {
+logisticIPW <- function(data, true_att, feat_rep, covs, att = TRUE, verbose = FALSE) {
   
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
@@ -239,7 +239,11 @@ logisticIPW <- function(data, true_att, feat_rep, covs, verbose = FALSE) {
   psmod <- glm(reformulate(covs, response = "treat"),  family = binomial(), data = data)
   pscore <- psmod$fitted.values
   pscore <- pmax(0.1, pmin (0.9, pscore))
-  ip <- ifelse(data$treat == 0, pscore / (1 - pscore), 1) # e(x) / (1 - e(x)) for Z=0               
+  if (att == TRUE) {
+    ip <- ifelse(data$treat == 0, pscore / (1 - pscore), 1) # e(x) / (1 - e(x)) for Z=0  
+  } else {
+    ip <- ifelse(data$treat == 1, 1 / pscore, 1 / (1 - pscore)) 
+  }
   data$ip.wts <- ip
   if (verbose) {
     print("IPW weights estimated")

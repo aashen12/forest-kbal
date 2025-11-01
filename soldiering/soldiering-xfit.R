@@ -1,9 +1,6 @@
 library(foreign)
 library(balancer)
-library(dplyr)
-library(ggplot2)
 library(sandwich)
-library(WeightIt)
 library(splines)
 library(GenericML)
 library(Matrix)
@@ -17,103 +14,140 @@ library(randomForest)
 library(kbal)
 library(geepack)
 library(irlba)
+library(tidyverse)
 
 rm(list=ls())
 
-setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-
-load("data/wsc-obs-study-data.RData")
-
-setwd("~/Desktop/BalWeights/forest-kbal/wsc")
+setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 source("../functions/BART-features.R")
 source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-set.seed(12)
+set.seed(122)
 
-outcome <- "math"
+setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 
-if (outcome == "math") {
-  data.obs$Y <- data.obs$mathPost
-  data.pre <- data.obs
-  data.pre$std_math <- scale(data.pre$mathPost)
-  data.pre <- data.pre %>% dplyr::rename(Z = m.treat)
-} else if (outcome == "vocab") {
-  data.obs$Y <- data.obs$vocabPost
-  data.pre <- data.obs
-  data.pre$std_math <- scale(data.pre$vocabPost)
-  data.pre <- data.pre %>% dplyr::rename(Z = v.treat)
-}
+# raw.data <- read_csv("blattman.csv")
+
+raw.data <- read_csv("blattman_claude.csv") %>% dplyr::rename(log.wage = lwage_mo)
 
 
+## For the wage variable, 504 observed values
 
-covs <- c(
-  "female", "white", "black", "asian", "hisp", "married", "logAge", "income",
-  "collegeS", "collegeM", "collegeD", "calc", "logBooks", "mathLike", "big5O", "big5C",
-  "big5E", "big5A", "big5N", "AMAS", "logBDI", "MCS", "GSES", "vocabPre",
-  "mathPre"
-)
+hist(raw.data$log.wage)
+hist(exp(raw.data$log.wage) - 1)
+
+mean(raw.data$log.wage[raw.data$abd == 1], na.rm = TRUE) - mean(raw.data$log.wage[raw.data$abd == 0], na.rm = TRUE)
+mean(raw.data$educ[raw.data$abd == 1], na.rm = TRUE) - mean(raw.data$educ[raw.data$abd == 0], na.rm = TRUE)
+
+
+df <- raw.data %>% 
+  dplyr::mutate(wage_mo = exp(log.wage) - 1) %>%
+  dplyr::rename(Z = abd, Y = educ)
+table(df$Z)
+dim(df)
+# names(df)
+
+
+# df$Y <- log1p(df$Y)
+
+
+AC_vars <- grep("^A1[4-9]$|^A2[0-9]$|^C_(ach|lan|kit|pad|amo|oru|paj)$", 
+                names(raw.data), value = TRUE)
+ACG_vars <- grep("^A1[4-9]$|^A2[0-9]$|^C_(ach|lan|kit|pad|amo|oru|paj)$|^G[1-8]_", 
+                 names(raw.data), value = TRUE)
+
+length(ACG_vars) - length(AC_vars)
+
+length(ACG_vars) - (2 + 15 + 31)
+
+ctrls <- c("fthr_ed0", "fthr_ed4", "fthr_ed7", "mthr_ed0", "mthr_ed4", "mthr_ed7",
+           "no_fthr96", "no_mthr96", "orphan96", "hh_fthr_frm", "hh_size96", 
+           "hh_size96_2", "hh_size96_3", "hh_size96_4", "hh_land", "hh_land_2", 
+           "hh_land_3", "hh_land_4", "hh_cattle", "hh_cattle_2", "hh_cattle_3", 
+           "hh_cattle_4", "hh_stock", "hh_stock_2", "hh_stock_3", "hh_stock_4", "hh_plow")
+
+ctrl_hh <- c("age", "hh_fthr_frm", "hh_size96", "hh_land", "landrich", 
+             "hh_cattle", "hh_stock", "hh_plow")
+
+ctrl_i <- c("fthr_ed0", "fthr_ed", "mthr_ed0", "mthr_ed", "no_fthr96", 
+            "no_mthr96", "orphan96")
+
+full_covs <- c(AC_vars, ACG_vars, ctrls, ctrl_hh, ctrl_i)
+
+## Covariates include geographical region, age in 1996, 
+### father’s education, mother’s education, whether the parents had died during 
+### or before 1996, whether the father is a farmer, and household size in 1996.
+
+## AC: age, geog region
+## ctrl_i: parental education, orphan, no parent, father farmer
+## orphan96: orphan in 1996
+## hh_fthr_frm: father farmer
+## hh_size96: household size in 1996
+
+covs <- full_covs #c(AC_vars, "fthr_ed", "mthr_ed", "orphan96", "hh_fthr_frm", "hh_size96")
 length(covs)
+# covs <- c(AC_vars, "fthr_ed", "mthr_ed", "no_fthr96", "no_mthr96", "orphan96", "hh_fthr_frm", "hh_size96")
 
-data.pre.log <- data.pre
+dim(df)
 
-table(data.pre$Z)
+# remove rows with missingness in Z or Y
+df <- df %>% filter(!is.na(Z) & !is.na(Y))
 
-naive.dim <- mean(data.pre$Y[data.pre$Z == 1]) - mean(data.pre$Y[data.pre$Z == 0])
+dim(df)
+
+table(df$Z)
+
+############################################################################################################
+####################################### REGRESSION ON RESIDUALS ############################################
+############################################################################################################
+# regress Y on all AC_vars and take residuals as outcome
+# lm_formula <- as.formula(
+#   paste("Y ~", paste(AC_vars, collapse = " + "))
+# )
+# 
+# fit <- lm(lm_formula, data = df)
+# 
+# resids <- resid(fit)
+# length(resids)
+# 
+# df$Y <- resids
+# covs <- covs[!covs %in% AC_vars]
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+
+naive.dim <- mean(df$Y[df$Z == 1]) - mean(df$Y[df$Z == 0])
 naive.dim
 
-log_trans <- TRUE
 
-if (log_trans == TRUE) {
-  # log transform
-  data.pre.log <- data.pre.log %>%
-    mutate(across(
-      .cols = where(is.numeric) & !any_of(c("Z", "Y")),
-      .fns = ~ if (n_distinct(.x) >= 3 && min(.x, na.rm = TRUE) >= 0) {
-        log(.x + 1)
-      } else {
-        .x
-      }
-    ))
-} else {
-  # exp transform
-  data.pre.log <- data.pre.log %>%
-    mutate(across(
-      .cols = where(is.numeric) & !any_of(c("Z", "Y")),
-      .fns = ~ if (n_distinct(.x) >= 2 && min(.x, na.rm = TRUE) >= 0) {
-        exp(.x)
-      } else {
-        .x
-      }
-    ))
-}
+data.c <- df %>% filter(Z == 0)
+data.t <- df %>% filter(Z == 1)
 
-data.c <- data.pre %>% filter(Z == 0)
-data.t <- data.pre %>% filter(Z == 1)
-
-data.c.log <- data.pre.log %>% filter(Z == 0)
-data.t.log <- data.pre.log %>% filter(Z == 1)
 
 n_repeat <- 10
 
-full.dat <- bind_rows(data.c.log, data.t.log)
+full.dat <- bind_rows(data.c, data.t)
 
 raw.all <- balancingWeights(data = full.dat, true_att = 0, feat_rep = "raw", 
                             raw_covs = covs, kernel_covs = NULL, verbose = TRUE)
 
 raw.all
 
-out_filename <- paste0("logs/wsc-xfit-", format(Sys.time(), "%b-%d-%X-%Y"), ".txt")
+out_filename <- paste0("logs/soldiering-xfit-", format(Sys.time(), "%b-%d-%X-%Y"), ".txt")
 
 write("", out_filename, append = FALSE)   ##### ADDED (overwrite existing file)
+
+
 
 
 single.fit <- function(pilot.dat, est.dat, treat.dat, covs) {
   analysis.dat <- bind_rows(treat.dat, est.dat)
   sing.fit.out <- eval_data(dat = analysis.dat, 
                             pilot.dat = pilot.dat, 
-                            treat.true = 0, verbose = TRUE, covs = covs, dataset = "wsc")
+                            treat.true = 0, verbose = TRUE, covs = covs, dataset = "soldiering")
   sing.fit.out
 }
 
@@ -125,7 +159,7 @@ process_finished_sim <- function(edat, id = 999) {
     rf_expl_var <- resi$rf_expl_var
     bart_expl_var <- resi$bart_expl_var
     expl_var_df <- data.frame(rf_expl_var = rf_expl_var,
-                              bart_expl_var = bart_expl_var)
+                                 bart_expl_var = bart_expl_var)
     resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart", "rf_expl_var", "bart_expl_var", "kbal_expl_var")]
     results_df <- dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
     l <- list(results_df = results_df, expl_var_df = expl_var_df)
@@ -180,11 +214,10 @@ run_cross_fit <- function(data.c1, data.c2, treat.dat, covs, trans, id = 999) {
 }
 
 
-
 numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
 plan(multisession, workers = numCores)
 
-log_message <- paste("Starting WSC XFIT with log_trans", ifelse(log_trans == TRUE, "LOG", "EXP"), "\n")
+log_message <- paste("Starting soldiering XFIT \n")
 cat(log_message, file = out_filename, append = TRUE)
 
 out <- parallel::mclapply(1:n_repeat, function(i) {
@@ -195,31 +228,17 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   
   data.c1 <- data.c[sample_split, ]
   data.c2 <- data.c[-sample_split, ]
-  
-  data.c1.log <- data.c.log[sample_split, ]
-  data.c2.log <- data.c.log[-sample_split, ]
-  
-  out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, trans = "none", id = i)
-  out.log <- run_cross_fit(data.c1 = data.c1.log, data.c2 = data.c2.log, treat.dat = data.t.log, trans = "log", id = i)
-  
+
+  out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, covs = covs, trans = "none", id = i)
+
   log_message <- paste("Finished repeat number", i, "\n")
   cat(log_message, file = out_filename, append = TRUE)
   
-  out_df <- list(out.notrans = out.notrans, out.log = out.log)
+  out_df <- out.notrans
   out_df
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-if (outcome == "math") {
-  if (log_trans == TRUE) {
-    save(out, file = "results/wsc-math-xfit.RData")
-  } else {
-    save(out, file = "results/wsc-math-xfit-exp.RData")
-  }
-} else if (outcome == "vocab") {
-  if (log_trans == TRUE) {
-    save(out, file = "results/wsc-vocab-xfit.RData")
-  } else {
-    save(out, file = "results/wsc-vocab-xfit-exp.RData")
-  }
-}
+save(out, file = "results/soldiering-xfit-educ.RData")
+
+

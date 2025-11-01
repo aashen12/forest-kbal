@@ -6,4 +6,4 @@
 #SBATCH -c 11
 #SBATCH -p jsteinhardt
 
-Rscript wsc-xfit.R
+Rscript soldiering-xfit.R

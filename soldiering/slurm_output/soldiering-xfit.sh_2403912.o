@@ -1,0 +1,24 @@
+[1] 0.08742215
+[1] -0.5954243
+
+  0   1 
+279 462 
+[1]  741 1259
+[1] 32
+[1] 3
+[1] 112
+[1]  741 1259
+[1]  741 1259
+
+  0   1 
+279 462 
+[1] 741
+[1] -0.6504826
+[1] "balancing weights estimated"
+[1] "ESS calculated"
+[1] "PBR calculated"
+[1] "simulation finished"
+       est feat_rep       bias  rel.bias   cvg      pbr      ess    est.att
+SE bal.wgt      raw -0.6694938 0.6694938 FALSE 99.04704 151.6439 -0.6694938
+          se
+SE 0.2716999

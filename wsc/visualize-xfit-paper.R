@@ -6,7 +6,7 @@ rm(list = ls())
 
 setwd("~/Desktop/BalWeights/forest-kbal/wsc")
 
-transform <- "exp"
+transform <- "log"
 
 
 if (transform == "exp") {
@@ -18,7 +18,9 @@ if (transform == "exp") {
 
 
 
-full.df <- do.call(rbind, out)
+full.df.trans <- do.call(rbind, lapply(out, function(x) x$out.log$cfit.df))
+full.df.notrans <- do.call(rbind, lapply(out, function(x) x$out.notrans$cfit.df))
+full.df <- rbind(full.df.trans, full.df.notrans) 
 
 # full.df$repeat_num <- rep(1:5, rep(22, 5)) 
 
@@ -164,7 +166,7 @@ p.full <- df_plot %>%
 p.full
 
 ggsave(
-  filename = paste0("paper-figs/lalonde_full_", transform, ".pdf"),
+  filename = paste0("paper-figs/wsc_full_", transform, ".pdf"),
   plot     = p.full,
   device   = "pdf",      # base grDevices::pdf()
   width    = 11,          # double-column width
@@ -300,6 +302,114 @@ ggsave(
   device   = "pdf",      # base grDevices::pdf()
   width    = 11,          # double-column width
   height   = 5.5,        # balanced height
+  units    = "in",
+  useDingbats = FALSE
+)
+
+
+bstars.df %>%
+  dplyr::filter(trans == "log") %>% 
+  mutate(
+    encoding = factor(encoding, levels = rev(order_levels))  # put first items at top
+  ) %>%
+  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only")) %>%
+  ggplot(aes(x = est.att, y = encoding, color = family)) +
+  # geom_rect(data = shade_df,
+  #           aes(xmin = xmin, xmax = xmax,
+  #               ymin = ymin, ymax = ymax,
+  #               fill = region),
+  #           inherit.aes = FALSE, alpha = 0.5) +
+  geom_vline(xintercept = bench_val, linetype = "dashed",
+             linewidth = 1, color = "black") + 
+  scale_fill_manual(
+    name = "Benchmark CI",
+    values = c("Outside 95% CI" = "grey50")
+  ) +
+  geom_point(size = 6.5) +
+  geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.55, linewidth = 0.9) +
+  #geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 1, color = "black") +
+  theme_minimal() +
+  scale_color_manual(
+    name   = "Features",
+    values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33",
+               "Exp. Benchmark"="firebrick2"),
+    labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel",
+               Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
+    breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
+  ) +
+  scale_y_discrete(labels = c(
+    raw_none       = "Raw (untransformed)",
+    kbal_plus_none = "KBal + Raw (untransformed)",
+    rf_plus_none   = "RF + Raw (untransformed)",
+    bart_plus_none = "BART + Raw (untransformed)",
+    raw_log        = "Raw",
+    kbal_plus_log  = "KBal + Raw",
+    rf_plus_log    = "RF + Raw",
+    bart_plus_log  = "BART + Raw"
+  )) +
+  labs(x = "Estimated ATT", y = "Feature Representation", color = "Features") +
+  scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
+  theme(text = element_text(size = 23), legend.position = "right") #+xlim(0.4, 1.5)
+
+ggsave(
+  filename = "paper-figs/wsc_main_transformed.pdf",
+  device   = "pdf",      # base grDevices::pdf()
+  width    = 9,          # double-column width
+  height   = 5.5,        # balanced height
+  units    = "in",
+  useDingbats = FALSE
+)
+
+
+
+
+scree.df <- do.call(rbind, lapply(out, function(x) x$out.log$expl_var.df))
+
+num_per_id <- scree.df %>% 
+  dplyr::group_by(id) %>% 
+  dplyr::summarise(n = n())
+
+length_pc <- unique(num_per_id$n)
+
+scree.df$nc <- rep(1:length_pc, nrow(scree.df) / length_pc)
+
+
+scree.df.summ <- scree.df %>% 
+  dplyr::group_by(id, nc) %>% 
+  dplyr::summarise(
+    rf_cumvar   = mean(rf_expl_var),
+    bart_cumvar = mean(bart_expl_var),
+    .groups = "drop"
+  ) %>% 
+  pivot_longer(
+    cols = c(rf_cumvar, bart_cumvar),
+    names_to = "kernel",
+    values_to = "meanvar"
+  )
+
+# create spaghetti scree plot with points and lines running through. x-axis is nc,
+# y axis is explained variance. one id per color
+scree.plot = scree.df.summ %>% 
+  filter(nc <= 15) %>% 
+  ggplot(aes(x = nc, y = meanvar, color = factor(id))) +
+  geom_point(size = 3, alpha = 0.6) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ kernel, ncol = 1,
+             labeller = as_labeller(c(rf_cumvar = "RF Kernel",
+                                      bart_cumvar = "BART Kernel"))) +
+  labs(x = "Number of Principal Components",
+       y = "Explained Variance") +
+  theme_bw() + 
+  theme(legend.position="none", text = element_text(size = 18))
+
+scree.plot
+
+ggsave(
+  filename = "paper-figs/wsc_scree_plot.pdf",
+  plot     = scree.plot,
+  device   = "pdf",      # base grDevices::pdf()
+  width    = 8,          # double-column width
+  height   = 6,        # balanced height
   units    = "in",
   useDingbats = FALSE
 )

@@ -1,6 +1,8 @@
 library(tidyverse)
-
+setwd("~/Desktop/BalWeights/forest-kbal/simulations")
 df <- read_csv("results/kernel_comparison.csv")
+
+head(df)
 
 andy_theme <- function() {
   theme_minimal() + 
@@ -9,23 +11,68 @@ andy_theme <- function() {
 
 
 
-kij_plot = df %>% 
+rf_bart = df %>% 
   # dplyr::filter(rf > 0) %>% 
   ggplot(aes(x = bart, y = rf)) +
   geom_point(alpha = 0.6, color = "forestgreen", size = 2.5) +
   # geom_smooth(method = "lm", se = FALSE, color = "blue") + 
-  labs(x = "BART", y = "RF") + 
+  labs(x = "BART Kernel", y = "RF Kernel") + 
   andy_theme()
 
+rf_bart
+
 ggsave(
-  filename = "paper-figs/kij_plot.pdf",
-  plot     = kij_plot,
+  filename = "paper-figs/rf_bart_plot.pdf",
+  plot     = rf_bart,
   device   = "pdf",      # base grDevices::pdf()
   width    = 6.5,          # double-column width
   height   = 5,        # balanced height
   units    = "in",
   useDingbats = FALSE
 )
+
+rf_kbal <- df %>% 
+  # dplyr::filter(rf > 0) %>% 
+  ggplot(aes(x = kbal, y = rf)) +
+  geom_point(alpha = 0.6, color = "forestgreen", size = 2.5) +
+  # geom_smooth(method = "lm", se = FALSE, color = "blue") + 
+  labs(x = "Gaussian Kernel", y = "RF Kernel") + 
+  andy_theme()
+
+rf_kbal
+
+ggsave(
+  filename = "paper-figs/rf_kbal_plot.pdf",
+  plot     = rf_kbal,
+  device   = "pdf",      # base grDevices::pdf()
+  width    = 6.5,          # double-column width
+  height   = 5,        # balanced height
+  units    = "in",
+  useDingbats = FALSE
+)
+
+bart_kbal <- df %>% 
+  # dplyr::filter(rf > 0) %>% 
+  ggplot(aes(x = kbal, y = bart)) +
+  geom_point(alpha = 0.6, color = "forestgreen", size = 2.5) +
+  # geom_smooth(method = "lm", se = FALSE, color = "blue") + 
+  labs(x = "Gaussian Kernel", y = "BART Kernel") + 
+  andy_theme()
+
+bart_kbal
+
+ggsave(
+  filename = "paper-figs/bart_kbal_plot.pdf",
+  plot     = bart_kbal,
+  device   = "pdf",      # base grDevices::pdf()
+  width    = 6.5,          # double-column width
+  height   = 5,        # balanced height
+  units    = "in",
+  useDingbats = FALSE
+)
+
+
+
 
 
 # Overlapping histograms of BART vs RF (assumes `df` in memory)

@@ -105,7 +105,7 @@ run_scenario = function() {
     edat <- tryCatch({
       eval_data(dat = bdat, 
                 pilot.dat = pilot.dat, 
-                treat.true = true.att.bdat, verbose = FALSE, simulation = TRUE)
+                treat.true = true.att.bdat, verbose = FALSE, dataset = "simulation")
     },
     error = function(e) {
       print("Eval data failed")
@@ -120,7 +120,7 @@ run_scenario = function() {
       resi <- edat[[i]]
       elbo_rf <- resi$elbo_rf
       elbo_bart <- resi$elbo_bart
-      resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart")]
+      resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart", "rf_expl_var", "bart_expl_var", "kbal_expl_var")]
       dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
     })
     

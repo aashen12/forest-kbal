@@ -1,0 +1,28 @@
+
+  0   1 
+279 462 
+[1] 741  19
+ [1] "Z"           "C_ach"       "C_akw"       "C_ata"       "C_kma"      
+ [6] "C_oro"       "C_pad"       "C_paj"       "C_pal"       "age"        
+[11] "fthr_ed"     "mthr_ed"     "orphan96"    "hh_fthr_frm" "hh_size96"  
+[16] "educ"        "distress"    "log.wage"    "Y"          
+[1] 8
+[1] 741  19
+[1] 741  19
+[1] -267.723
+[1] "balancing weights estimated"
+[1] "ESS calculated"
+[1] "PBR calculated"
+[1] "simulation finished"
+       est feat_rep      bias rel.bias  cvg      pbr     ess   est.att       se
+SE bal.wgt      raw -112.0516 112.0516 TRUE 99.61515 257.975 -112.0516 371.3639
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"
+[1] "Starting RF Kernel"

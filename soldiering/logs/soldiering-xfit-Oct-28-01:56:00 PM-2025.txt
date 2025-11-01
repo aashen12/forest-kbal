@@ -1,0 +1,22 @@
+
+Starting soldiering XFIT 
+Starting repeat number 1 at 2025-10-28 13:56:02.204039 
+Starting repeat number 2 at 2025-10-28 13:56:02.212758 
+Starting repeat number 3 at 2025-10-28 13:56:02.222186 
+Starting repeat number 4 at 2025-10-28 13:56:02.229274 
+Starting repeat number 5 at 2025-10-28 13:56:02.237693 
+Starting repeat number 6 at 2025-10-28 13:56:02.246556 
+Starting repeat number 7 at 2025-10-28 13:56:02.260943 
+Starting repeat number 8 at 2025-10-28 13:56:02.275978 
+Starting repeat number 9 at 2025-10-28 13:56:02.290939 
+Starting repeat number 10 at 2025-10-28 13:56:02.306719 
+Finished repeat number 2 
+Finished repeat number 1 
+Finished repeat number 6 
+Finished repeat number 9 
+Finished repeat number 5 
+Finished repeat number 10 
+Finished repeat number 7 
+Finished repeat number 3 
+Finished repeat number 8 
+Finished repeat number 4 

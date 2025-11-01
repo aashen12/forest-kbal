@@ -130,15 +130,50 @@ data_rf_plus_whole <- rf_obj$data_rf
 data_rf_K <- rf_obj$K 
 
 
+### KBAL ###
+kbal.scenarios <- expand.grid(fr = c("kbal_only", "kbal_plus"), ncomp = nc_rf)
+X_unscaled <- model.matrix(reformulate(c(covs, "-1")), data)
+# scale to have variance 1 but not mean 0
+X <- scale(X_unscaled)
+kbal_objs <- lapply(1:length(nc_rf), function(i) {
+  nc <- nc_rf[i]
+  sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
+  print(paste("Sim2:", sim2))
+  kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+                         mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
+  kbal_only_weights <- kbal_obj$w
+  data_kbal_only <-  data.frame(
+    kbal_obj$svdK$u[, 1:nc] %*% diag(sqrt(kbal_obj$svdK$d[1:nc]))
+  )
+  names(data_kbal_only) <- paste0("PC", 1:nc)
+  data_kbal_only$kbal_weights <- kbal_only_weights
+  var_exp <- kbal_obj$explained_variance
+  data_kbal_plus <- cbind(data, data_kbal_only)
+  ol <- list(
+    data_kbal_only = data_kbal_only %>% dplyr::mutate(treat = data$Z, Y = data$Y),
+    data_kbal_plus = data_kbal_plus
+  )
+  ol
+}
+)
+names(kbal_objs) <- paste0("kbal_", nc_rf)
+if (verbose) print("KBal Finished!")
+
+
+
 
 bart.scenarios.partial <- expand.grid(fr = c("bart_only", "bart_plus"), ncomp = nc_bart)
 bart.scenarios <- bart.scenarios.partial
-bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = TRUE)
+bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, covs = covs)
 bart.pca <- pca_bart(kernel = bart_obj$kernel, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
                      n_components = max(nc_bart))
 elbo_bart <- bart.pca$elbow
 data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
 data_bart_plus_whole <- bart.pca$data_bart
+
+
+kbal_pcs <- kbal_objs[[length(kbal_objs)]]$data_kbal_only %>% dplyr::select(-kbal_weights, -treat, -Y)
+colnames(kbal_pcs) <- paste0("KBAL_PC", 1:ncol(kbal_pcs))
 
 bart_pcs <- bart.pca$features
 colnames(bart_pcs) <- paste0("BART_PC", 1:ncol(bart_pcs))
@@ -146,9 +181,9 @@ colnames(bart_pcs) <- paste0("BART_PC", 1:ncol(bart_pcs))
 rf_pcs <- rf_obj$features
 colnames(rf_pcs) <- paste0("RF_PC", 1:ncol(rf_pcs))
 
-data <- cbind(bart_pcs, rf_pcs, Y = dat$Y, Z = dat$Z)
+data <- cbind(bart_pcs, rf_pcs, kbal_pcs, Y = dat$Y, Z = dat$Z)
 
-# write_csv(data, "results/kernel_pcs.csv")
+write_csv(data, "results/kernel_pcs.csv")
 # make a ggplot of the first two PCs of RF & BART
 
 andy_theme <- function() {

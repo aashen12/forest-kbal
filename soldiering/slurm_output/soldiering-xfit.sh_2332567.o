@@ -1,0 +1,27 @@
+
+  0   1 
+279 462 
+# A tibble: 504 × 25
+   C_ach C_pad C_paj   A14   A15   A16   A17   A18   A19   A20   A21   A22   A23
+   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+ 1     0     0     0     0     0     0     0     0     0     0     1     0     0
+ 2     0     0     0     0     0     0     0     0     0     0     0     0     0
+ 3     0     0     0     0     0     0     0     0     0     0     0     0     1
+ 4     0     0     0     0     0     0     0     1     0     0     0     0     0
+ 5     0     0     0     0     0     0     0     1     0     0     0     0     0
+ 6     0     0     0     0     0     0     0     0     0     0     0     0     0
+ 7     0     0     0     0     0     0     0     0     0     0     0     0     1
+ 8     0     0     0     0     0     0     0     0     0     0     0     0     0
+ 9     0     0     0     0     0     0     0     0     0     0     0     0     0
+10     0     0     0     0     0     0     0     0     0     0     0     1     0
+# ℹ 494 more rows
+# ℹ 12 more variables: A24 <dbl>, A25 <dbl>, A26 <dbl>, A27 <dbl>, A28 <dbl>,
+#   A29 <dbl>, fthr_ed <dbl>, mthr_ed <dbl>, no_fthr96 <dbl>, no_mthr96 <dbl>,
+#   hh_fthr_frm <dbl>, hh_size96 <dbl>
+[1] -528.3726
+[1] "balancing weights estimated"
+[1] "ESS calculated"
+[1] "PBR calculated"
+[1] "simulation finished"
+       est feat_rep    bias rel.bias  cvg      pbr      ess est.att       se
+SE bal.wgt      raw -712.91   712.91 TRUE 99.24265 142.3799 -712.91 606.8618

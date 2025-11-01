@@ -1,11 +1,26 @@
 # Ignore everything
 *
 
-# Allow selected folders and their contents
+# Allow selected folders (first the folder, then everything inside)
+!/simulations/
 !/simulations/**
+
+!/functions/
 !/functions/**
+
+!/wsc/
 !/wsc/**
+
+!/soldiering/
+!/soldiering/**
+
+simulations/slurm_output
 
 # Always allow this file
 !.gitignore
-.Rproj.user
+
+# Recommended RStudio ignores
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
