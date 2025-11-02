@@ -24,7 +24,7 @@ source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-set.seed(122)
+set.seed(12)
 
 setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 
