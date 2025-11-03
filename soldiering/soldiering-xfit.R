@@ -24,8 +24,6 @@ source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-set.seed(12)
-
 setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 
 # raw.data <- read_csv("blattman.csv")
@@ -44,7 +42,7 @@ mean(raw.data$educ[raw.data$abd == 1], na.rm = TRUE) - mean(raw.data$educ[raw.da
 
 df <- raw.data %>% 
   dplyr::mutate(wage_mo = exp(log.wage) - 1) %>%
-  dplyr::rename(Z = abd, Y = educ)
+  dplyr::rename(Z = abd, Y = distress)
 table(df$Z)
 dim(df)
 # names(df)
@@ -217,6 +215,8 @@ run_cross_fit <- function(data.c1, data.c2, treat.dat, covs, trans, id = 999) {
 numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
 plan(multisession, workers = numCores)
 
+set.seed(12)
+
 log_message <- paste("Starting soldiering XFIT \n")
 cat(log_message, file = out_filename, append = TRUE)
 
@@ -239,6 +239,7 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
 }, mc.set.seed = TRUE, mc.cores = numCores - 1)
 
 
-save(out, file = "results/soldiering-xfit-educ.RData")
+# save(out, file = "results/soldiering-xfit-educ.RData")
+save(out, file = "results/soldiering-xfit-distress.RData")
 
 

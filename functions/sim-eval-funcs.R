@@ -61,7 +61,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   if (dataset == "simulation") {
     nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- nc_bart <- 2:15
+    nc_rf <- nc_bart <- 2:50
   }
   
   ############################# Extract BART Kernel Features #################################
