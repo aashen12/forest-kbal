@@ -1,4 +1,4 @@
-eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NULL, dataset = "soldiering") {
+eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NULL, dataset = "soldiering", seed = 1) {
   
   data.c <- dat %>% filter(Z==0)
   data.t <- dat %>% filter(Z==1)
@@ -14,7 +14,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   
   if (dataset == "simulation") {
     covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
-  } else if (dataset == "soldiering") {
+  } else if (dataset == "soldiering" | dataset == "soldering-dbldip") {
     # FILL IN FROM CONSEQUENCES PAPER
     AC_vars <- grep("^A1[4-9]$|^A2[0-9]$|^C_(ach|lan|kit|pad|amo|oru|paj)$",
                     names(raw.data), value = TRUE)
@@ -61,8 +61,34 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   if (dataset == "simulation") {
     nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- nc_bart <- 2:50
+    nc_rf <- nc_bart <- 2:20
   }
+  
+  ##################### Generate Random Forest features ############################
+  
+  if (verbose) print("Starting RF Kernel")
+  # rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus", "rf_mixed"), ncomp = nc_rf)
+  rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus"), ncomp = nc_rf)
+  rf.scenarios.ker <- expand.grid(fr = c("rf_K", "rf_K_plus"), ncomp = nrow(data))
+  rf.scenarios <- rbind(rf.scenarios.partial, rf.scenarios.ker)
+  #rf.scenarios <- rf.scenarios.partial
+  ## First, run random forest
+  
+  form <- reformulate(covs, response = "Y")
+  set.seed(seed)
+  rfmod <- randomForest(form, data = data.c.train, ntree = 500)
+  
+  rf_obj <- rf_kernel_matrix(model = rfmod, data = data, X = as.matrix(data %>% dplyr::select(-Y)),
+                             n_components = max(nc_rf), verbose = TRUE)
+  elbo_rf <- rf_obj$elbow
+  rf_expl_var <- rf_obj$explained_variance
+  data_rf_only_whole <- rf_obj$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  data_rf_plus_whole <- rf_obj$data_rf
+  # data_rf_mixed_whole <- rf_obj$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  data_rf_K <- rf_obj$K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
+  # append raw covs with data_rf_K
+  data_rf_k_plus <- cbind(data_rf_K, data %>% dplyr::select(all_of(covs)))
+  ##############################################################################
   
   ############################# Extract BART Kernel Features #################################
   print("Starting BART Kernel")
@@ -88,41 +114,46 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   
   ############################# Extract Gaussian Kernel Features #################################
   if (verbose) print("Starting Kbal Kernel")
+  if (dataset != "simulation") {
+    data.kbal <- data
+  } else if (dataset == "simulation" | dataset == "soldiering-dbldip") {
+    data.kbal <- data
+  }
+  
   kbal.scenarios.partial <- expand.grid(fr = c("kbal_only", "kbal_plus"), ncomp = nc_rf)
   kbal.scenarios.ker <- expand.grid(fr = c("kbal_K", "kbal_K_plus"), ncomp = nrow(data))
   kbal.scenarios <- rbind(kbal.scenarios.partial, kbal.scenarios.ker)
-  X_unscaled <- model.matrix(reformulate(c(covs, "-1")), data)
+  
+  X_unscaled <- model.matrix(reformulate(c(covs, "-1")), data.kbal)
   # scale to have variance 1 but not mean 0
   X <- scale(X_unscaled)
-  
-  
   
   kbal_objs <- lapply(1:length(nc_rf), function(i) {
     nc <- nc_rf[i]
     if (dataset == "simulation") {
       sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
       print(paste("Sim2:", sim2))
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+      kbal_obj <- kbal::kbal(X, treatment = data.kbal$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
     } else if (dataset == "lalonde") {
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+      kbal_obj <- kbal::kbal(X, treatment = data.kbal$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = TRUE,
                              cat_columns = c("black", "hisp", "married", "u74", "u75", "nodegr", "educ")
                              )
     } else if (dataset == "wsc") {
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+      kbal_obj <- kbal::kbal(X, treatment = data.kbal$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = TRUE,
                              cat_columns = c("female", "white", "black", "asian", "hisp", "married",
                                              "collegeS", "collegeM", "collegeD", "calc",
                                              "mathLike", "income"))
-    } else if (dataset == "soldiering") {
-      num_vals <- apply(data %>% dplyr::select(all_of(covs)), 2, function(x) length(unique(x)))
+    } else if (dataset == "soldiering" | dataset == "soldiering-dbldip") {
+      num_vals <- apply(data.kbal %>% dplyr::select(all_of(covs)), 2, function(x) length(unique(x)))
       discrete_covs <- names(num_vals[num_vals <= 10])
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE,
+      kbal_obj <- kbal::kbal(X, treatment = data.kbal$Z, numdims = nc, printprogress = FALSE,
                              mixed_data = TRUE,
                              cat_columns = discrete_covs)
     } else {
-      kbal_obj <- kbal::kbal(X, treatment = data$Z, numdims = nc, printprogress = FALSE)
+      kbal_obj <- kbal::kbal(X, treatment = data.kbal$Z, numdims = nc, printprogress = FALSE)
     }
     kbal_only_weights <- kbal_obj$w
     data_kbal_only <-  data.frame(
@@ -131,9 +162,9 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
     names(data_kbal_only) <- paste0("PC", 1:nc)
     data_kbal_only$kbal_weights <- kbal_only_weights
     var_exp <- kbal_obj$explained_variance
-    data_kbal_plus <- cbind(data, data_kbal_only)
+    data_kbal_plus <- cbind(data.kbal, data_kbal_only)
     ol <- list(
-      data_kbal_only = data_kbal_only %>% dplyr::mutate(treat = data$Z, Y = data$Y),
+      data_kbal_only = data_kbal_only %>% dplyr::mutate(treat = data.kbal$Z, Y = data.kbal$Y),
       data_kbal_plus = data_kbal_plus
     )
     ol
@@ -147,61 +178,38 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   if (dataset == "simulation") {
     sim2 <- length(unique(X[,6])) == 2 # X6 in sim2 is bernoulli, we just need a quick check for Sim1 or Sim2
     print(paste("Sim2:", sim2))
-    kbal_K_obj <- kbal::kbal(X, treatment = data$Z, printprogress = FALSE,
+    kbal_K_obj <- kbal::kbal(X, treatment = data.kbal$Z, printprogress = FALSE,
                            mixed_data = sim2, cat_columns = ifelse(sim2, "X6", NULL))
   } else if (dataset == "lalonde") {
-    kbal_K_obj <- kbal::kbal(X, treatment = data$Z, printprogress = FALSE,
+    kbal_K_obj <- kbal::kbal(X, treatment = data.kbal$Z, printprogress = FALSE,
                            mixed_data = TRUE,
                            cat_columns = c("black", "hisp", "married", "u74", "u75", "nodegr", "educ")
     )
   } else if (dataset == "wsc") {
-    kbal_K_obj <- kbal::kbal(X, treatment = data$Z, printprogress = FALSE,
+    kbal_K_obj <- kbal::kbal(X, treatment = data.kbal$Z, printprogress = FALSE,
                            mixed_data = TRUE,
                            cat_columns = c("female", "white", "black", "asian", "hisp", "married",
                                            "collegeS", "collegeM", "collegeD", "calc",
                                            "mathLike", "income"))
   } else if (dataset == "soldiering") {
-    num_vals <- apply(data %>% dplyr::select(all_of(covs)), 2, function(x) length(unique(x)))
+    num_vals <- apply(data.kbal %>% dplyr::select(all_of(covs)), 2, function(x) length(unique(x)))
     discrete_covs <- names(num_vals[num_vals <= 10])
-    kbal_K_obj <- kbal::kbal(X, treatment = data$Z, printprogress = FALSE,
+    kbal_K_obj <- kbal::kbal(X, treatment = data.kbal$Z, printprogress = FALSE,
                            mixed_data = TRUE,
                            cat_columns = discrete_covs)
   } else {
-    kbal_K_obj <- kbal::kbal(X, treatment = data$Z, printprogress = FALSE)
+    kbal_K_obj <- kbal::kbal(X, treatment = data.kbal$Z, printprogress = FALSE)
   }
   kbal_expl_var <- NULL
   data_kbal_K <- data.frame(kbal_K_obj$K) 
   names(data_kbal_K) <- paste0("PC", 1:ncol(data_kbal_K))
-  data_kbal_K <- data_kbal_K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  data_kbal_K_plus <- cbind(data_kbal_K, data %>% dplyr::select(all_of(covs)))
+  data_kbal_K <- data_kbal_K %>% dplyr::mutate(Y = data.kbal$Y, Z = data.kbal$Z)
+  data_kbal_K_plus <- cbind(data_kbal_K, data.kbal %>% dplyr::select(all_of(covs)))
   
   if (verbose) print("KBal Finished!")
   ##############################################################################
   
-  ##################### Generate Random Forest features ############################
   
-  if (verbose) print("Starting RF Kernel")
-  # rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus", "rf_mixed"), ncomp = nc_rf)
-  rf.scenarios.partial <- expand.grid(fr = c("rf_only", "rf_plus"), ncomp = nc_rf)
-  rf.scenarios.ker <- expand.grid(fr = c("rf_K", "rf_K_plus"), ncomp = nrow(data))
-  rf.scenarios <- rbind(rf.scenarios.partial, rf.scenarios.ker)
-  #rf.scenarios <- rf.scenarios.partial
-  ## First, run random forest
-  
-  form <- reformulate(covs, response = "Y")
-  rfmod <- randomForest(form, data = data.c.train, ntree = 100)
-  
-  rf_obj <- rf_kernel_matrix(model = rfmod, data = data, X = as.matrix(data %>% dplyr::select(-Y)),
-                             n_components = max(nc_rf), verbose = TRUE)
-  elbo_rf <- rf_obj$elbow
-  rf_expl_var <- rf_obj$explained_variance
-  data_rf_only_whole <- rf_obj$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  data_rf_plus_whole <- rf_obj$data_rf
-  # data_rf_mixed_whole <- rf_obj$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  data_rf_K <- rf_obj$K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  # append raw covs with data_rf_K
-  data_rf_k_plus <- cbind(data_rf_K, data %>% dplyr::select(all_of(covs)))
-  ##############################################################################
   
   raw.scenarios <- expand.grid(fr = "raw", ncomp = 0)
   ### Run the actual simulation ###
@@ -213,7 +221,11 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
     feat_rep <- paste(fr, nc, sep = "_")
     print(feat_rep)
     if (fr == "raw") {
-      dataset <- data
+      if (dataset == "simulation" | dataset == "soldiering-dbldip") {
+        dataset <- data
+      } else {
+        dataset <- rbind(data, pilot.dat)
+      }
       raw_covs <- covs
       kernel_covs <- NULL
       input_covs <- raw_covs

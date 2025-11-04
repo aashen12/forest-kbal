@@ -3,11 +3,14 @@ library(tidyverse)
 
 rm(list = ls())
 setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
-load("results/soldiering-xfit-educ.RData")
+load("results/soldiering-xfit-educ-2010.RData")
+#load("results/soldiering-xfit-distress-ror.RData")
 full.df <- do.call(rbind, lapply(out, function(x) x$cfit.df))
 
 # full.df$repeat_num <- rep(1:5, rep(22, 5)) 
 dim(full.df)
+
+head(full.df)
 
 K <- max(full.df$id)
 
@@ -83,8 +86,11 @@ df_plot <- results.df %>%
   ) %>%
   dplyr::filter(!is.na(feat_group), !is.na(family), feat_group %in% c("Kernel + Raw", "Kernel Only"))
 
+head(df_plot[df_plot$feat_rep == "rf_plus",])
+
 
 full.plot = df_plot %>% 
+  dplyr::filter(feat_group=="Kernel + Raw") %>% 
   ggplot(
     aes(
       x = factor(nc),
@@ -113,7 +119,7 @@ full.plot = df_plot %>%
   #   aes(yintercept = -0.75, color = "Exp. Benchmark"),
   #   inherit.aes = FALSE, color = "red"
   # ) +
-  facet_wrap(~ feat_group, scales = "free_y") +
+  #facet_wrap(~ feat_group, scales = "free_y") +
   labs(
     y = "Estimated ATT",
     x = "Number of Principal Components",
@@ -161,12 +167,14 @@ full.plot = df_plot %>%
 
 full.plot
 
+
+
 ggsave(
   filename = "paper-figs/soldiering_full_plot.pdf",
   plot     = full.plot,
   device   = "pdf",      # base grDevices::pdf()
-  width    = 14,          # double-column width
-  height   = 6.5,        # balanced height
+  width    = 10,          # double-column width
+  height   = 6,        # balanced height
   units    = "in",
   useDingbats = FALSE
 )
@@ -251,13 +259,13 @@ tf.plot = bstars.df %>%
       Raw              = "gray33",
       "Exp. Benchmark" = "firebrick2"
     ),
-    labels = c(
-      KBal = "Design Kernel",
-      RF   = "RF Kernel",
-      BART = "BART Kernel",
-      Raw  = "Raw Covariates",
-      "Exp. Benchmark" = "Exp. Benchmark"
-    ),
+    # labels = c(
+    #   KBal = "Design Kernel",
+    #   RF   = "RF Kernel",
+    #   BART = "BART Kernel",
+    #   Raw  = "Raw Covariates",
+    #   "Exp. Benchmark" = "Exp. Benchmark"
+    # ),
     breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
   ) +
   scale_y_discrete(
@@ -271,13 +279,14 @@ tf.plot = bstars.df %>%
       raw        = "Raw"
     )
   ) +
-  labs(x = "Estimated ATT", y = "Feature Representation",
+  xlim(c(-1, -0.35)) + 
+  labs(x = "Estimated ATT", y = "",
        color = "Features") +
   scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16, Raw = 15)) + 
   theme(
     text = element_text(size = text_size),
-    strip.text = element_text(size = text_size - 3, face = "bold"),
-    legend.position = "right"
+    strip.text = element_text(size = text_size - 7, face = "bold"),
+    legend.position = "none"
   )
 
 tf.plot 
@@ -286,7 +295,7 @@ ggsave(
   filename = "paper-figs/soldiering_tf_plot.pdf",
   plot     = tf.plot,
   device   = "pdf",      # base grDevices::pdf()
-  width    = 9.5,          # double-column width
+  width    = 9,          # double-column width
   height   = 6.5,        # balanced height
   units    = "in",
   useDingbats = FALSE
@@ -326,10 +335,12 @@ scree.plot = scree.df.summ %>%
   facet_wrap(~ kernel, ncol = 1,
              labeller = as_labeller(c(rf_cumvar = "RF Kernel",
                                       bart_cumvar = "BART Kernel"))) +
-  labs(x = "Number of Principal Components",
+  labs(x = "Principal Component",
        y = "Explained Variance") +
   theme_bw() + 
   theme(legend.position="none", text = element_text(size = 18))
+
+scree.plot
 
 ggsave(
   filename = "paper-figs/soldiering_scree_plot.pdf",
@@ -401,6 +412,11 @@ lbls   <- c(KBal="Design Kernel", RF="RF Kernel",
 raw0_metrics_df <- metrics.df %>%
   filter(feat_rep %in% c("raw")) %>% 
   dplyr::select(est, raw0_pbr = pbr, raw0_ess = ess)
+
+metrics.df %>%
+  filter(!feat_rep %in% c("raw")) %>%
+  left_join(raw0_metrics_df, by = "est") %>% 
+  filter(nc == 5) %>% data.frame()
 
 
 metrics.df %>%

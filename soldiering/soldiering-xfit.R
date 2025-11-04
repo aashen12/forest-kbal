@@ -7,7 +7,6 @@ library(Matrix)
 library(glmnet)
 library(stochtree)
 library(foreach)
-library(doParallel)
 library(parallel)
 library(future.apply)
 library(randomForest)
@@ -28,6 +27,10 @@ setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 
 # raw.data <- read_csv("blattman.csv")
 
+Sys.setenv(OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1")  # avoid nondeterministic BLAS/OpenMP
+RNGkind("L'Ecuyer-CMRG")   # parallel-safe RNG
+set.seed(12)    
+
 raw.data <- read_csv("blattman_claude.csv") %>% dplyr::rename(log.wage = lwage_mo)
 
 
@@ -42,7 +45,7 @@ mean(raw.data$educ[raw.data$abd == 1], na.rm = TRUE) - mean(raw.data$educ[raw.da
 
 df <- raw.data %>% 
   dplyr::mutate(wage_mo = exp(log.wage) - 1) %>%
-  dplyr::rename(Z = abd, Y = distress)
+  dplyr::rename(Z = abd, Y = educ)
 table(df$Z)
 dim(df)
 # names(df)
@@ -91,7 +94,9 @@ length(covs)
 dim(df)
 
 # remove rows with missingness in Z or Y
-df <- df %>% filter(!is.na(Z) & !is.na(Y))
+df <- df %>% filter(!is.na(Z) & !is.na(Y)) %>% dplyr::select(all_of(c("Y", "Z", covs)))
+
+any(is.na(df))
 
 dim(df)
 
@@ -124,13 +129,11 @@ naive.dim
 data.c <- df %>% filter(Z == 0)
 data.t <- df %>% filter(Z == 1)
 
-
-n_repeat <- 10
-
 full.dat <- bind_rows(data.c, data.t)
 
 raw.all <- balancingWeights(data = full.dat, true_att = 0, feat_rep = "raw", 
                             raw_covs = covs, kernel_covs = NULL, verbose = TRUE)
+
 
 raw.all
 
@@ -141,11 +144,11 @@ write("", out_filename, append = FALSE)   ##### ADDED (overwrite existing file)
 
 
 
-single.fit <- function(pilot.dat, est.dat, treat.dat, covs) {
+single.fit <- function(pilot.dat, est.dat, treat.dat, covs, seed) {
   analysis.dat <- bind_rows(treat.dat, est.dat)
   sing.fit.out <- eval_data(dat = analysis.dat, 
                             pilot.dat = pilot.dat, 
-                            treat.true = 0, verbose = TRUE, covs = covs, dataset = "soldiering")
+                            treat.true = 0, verbose = TRUE, covs = covs, dataset = "soldiering", seed = seed)
   sing.fit.out
 }
 
@@ -169,10 +172,10 @@ process_finished_sim <- function(edat, id = 999) {
   ###results_df <- dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
 }
 
-run_cross_fit <- function(data.c1, data.c2, treat.dat, covs, trans, id = 999) {
-  fit.2.1.raw <- single.fit(pilot.dat = data.c2, est.dat = data.c1, treat.dat = treat.dat, covs = covs) 
+run_cross_fit <- function(data.c1, data.c2, treat.dat, covs, trans, id = 999, seed) {
+  fit.2.1.raw <- single.fit(pilot.dat = data.c2, est.dat = data.c1, treat.dat = treat.dat, covs = covs, seed = seed) 
   print("Finished first fit")
-  fit.1.2.raw <- single.fit(pilot.dat = data.c1, est.dat = data.c2, treat.dat = treat.dat, covs = covs)
+  fit.1.2.raw <- single.fit(pilot.dat = data.c1, est.dat = data.c2, treat.dat = treat.dat, covs = covs, seed = seed)
   print("Finished second fit") 
   
   
@@ -213,14 +216,22 @@ run_cross_fit <- function(data.c1, data.c2, treat.dat, covs, trans, id = 999) {
 
 
 numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
-plan(multisession, workers = numCores)
+future::plan(multisession, workers = numCores)
 
-set.seed(12)
+n_repeat <- 10
 
+seeder <- 2025 - 11 - 3
+
+seeds <- seeder * seq_len(n_repeat) 
 log_message <- paste("Starting soldiering XFIT \n")
 cat(log_message, file = out_filename, append = TRUE)
 
-out <- parallel::mclapply(1:n_repeat, function(i) {
+
+
+out <- parallel::mclapply(seq_len(n_repeat), function(i) {
+  
+  set.seed(seeds[i])
+  
   log_message <- paste("Starting repeat number", i, "at", Sys.time(), "\n")
   cat(log_message, file = out_filename, append = TRUE)
   
@@ -229,17 +240,19 @@ out <- parallel::mclapply(1:n_repeat, function(i) {
   data.c1 <- data.c[sample_split, ]
   data.c2 <- data.c[-sample_split, ]
 
-  out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, covs = covs, trans = "none", id = i)
+  out.notrans <- run_cross_fit(data.c1 = data.c1, data.c2 = data.c2, treat.dat = data.t, covs = covs, trans = "none", id = i, seed = seeds[i])
 
   log_message <- paste("Finished repeat number", i, "\n")
   cat(log_message, file = out_filename, append = TRUE)
   
   out_df <- out.notrans
   out_df
-}, mc.set.seed = TRUE, mc.cores = numCores - 1)
+}, mc.set.seed = FALSE, mc.preschedule = TRUE, mc.cores = numCores - 1)
 
 
-# save(out, file = "results/soldiering-xfit-educ.RData")
-save(out, file = "results/soldiering-xfit-distress.RData")
+filename = paste0("results/soldiering-xfit-educ-", seeder - 1, ".RData")
+
+save(out, file = filename)
+# save(out, file = "results/soldiering-xfit-distress-ror.RData")
 
 

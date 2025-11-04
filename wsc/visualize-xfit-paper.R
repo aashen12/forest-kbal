@@ -333,8 +333,8 @@ bstars.df %>%
     name   = "Features",
     values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33",
                "Exp. Benchmark"="firebrick2"),
-    labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel",
-               Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
+    # labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel",
+    #            Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
     breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
   ) +
   scale_y_discrete(labels = c(
@@ -347,15 +347,15 @@ bstars.df %>%
     rf_plus_log    = "RF + Raw",
     bart_plus_log  = "BART + Raw"
   )) +
-  labs(x = "Estimated ATT", y = "Feature Representation", color = "Features") +
+  labs(x = "Estimated ATT", y = "", color = "Features") +
   scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
-  theme(text = element_text(size = 23), legend.position = "right") #+xlim(0.4, 1.5)
+  theme(text = element_text(size = 23), legend.position = "none") #+xlim(0.4, 1.5)
 
 ggsave(
   filename = "paper-figs/wsc_main_transformed.pdf",
   device   = "pdf",      # base grDevices::pdf()
   width    = 9,          # double-column width
-  height   = 5.5,        # balanced height
+  height   = 6.5,        # balanced height
   units    = "in",
   useDingbats = FALSE
 )
