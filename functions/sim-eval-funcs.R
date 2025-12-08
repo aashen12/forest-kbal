@@ -61,7 +61,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   if (dataset == "simulation") {
     nc_rf <- nc_bart <- c(2, 5, 10, 15, 25, 50, 100)
   } else {
-    nc_rf <- nc_bart <- 2:20
+    nc_rf <- nc_bart <- 2:50
   }
   
   ##################### Generate Random Forest features ############################
@@ -115,7 +115,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
   ############################# Extract Gaussian Kernel Features #################################
   if (verbose) print("Starting Kbal Kernel")
   if (dataset != "simulation") {
-    data.kbal <- data
+    data.kbal <- data#rbind(data, pilot.dat)
   } else if (dataset == "simulation" | dataset == "soldiering-dbldip") {
     data.kbal <- data
   }
@@ -224,7 +224,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
       if (dataset == "simulation" | dataset == "soldiering-dbldip") {
         dataset <- data
       } else {
-        dataset <- rbind(data, pilot.dat)
+        dataset <- data #rbind(data, pilot.dat)
       }
       raw_covs <- covs
       kernel_covs <- NULL
@@ -344,8 +344,8 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
     ipw <- logisticIPW(data = dataset, true_att = treat.true, 
                        feat_rep = feat_rep, covs = input_covs, verbose = FALSE)
     
-    # rf <- outcomeRegression(data = dataset, true_att = treat.true, 
-    #                         feat_rep = feat_rep, type = "rf", covs = input_covs, verbose = FALSE)
+    ols <- outcomeRegression(data = dataset, true_att = treat.true,
+                            feat_rep = feat_rep, type = "ols", covs = input_covs, verbose = FALSE)
     
     aug.l2 <- augmentedBalWeights(data = dataset, true_att = treat.true, feat_rep = feat_rep, 
                                   raw_covs = raw_covs, kernel_covs = kernel_covs,
@@ -356,7 +356,7 @@ eval_data <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, covs = NU
     
     
     list(bw = bw, ipw = ipw, 
-         # rf = rf, 
+         ols = ols,
          kbal_bw = kbal_bw,
          aug.l2 = aug.l2, aug.vanilla = aug.vanilla, 
          elbo_rf = elbo_rf, 

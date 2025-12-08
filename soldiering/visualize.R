@@ -66,7 +66,7 @@ df_plot <- results.df %>%
   dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
   dplyr::left_join(benchmark_lines, by = c("est", "trans")) %>%
   dplyr::filter(!feat_rep %in% c("raw")) %>%
-  dplyr::filter(nc <= 20) %>% 
+  #dplyr::filter(nc <= 20) %>% 
   dplyr::mutate(
     feat_group = dplyr::case_when(
       feat_rep %in% c("kbal_only", "rf_only", "bart_only", "kbal_K", "rf_K", "bart_K") ~ "Kernel Only",
@@ -129,7 +129,7 @@ full.plot = df_plot %>%
   ) +
   theme_bw() +
   theme(
-    text = element_text(size = text_size),
+    text = element_text(size = text_size+8),
     strip.text = element_text(size = text_size - 3, face = "bold"),
     legend.position = "right"
   ) +
@@ -279,7 +279,7 @@ tf.plot = bstars.df %>%
       raw        = "Raw"
     )
   ) +
-  xlim(c(-1, -0.35)) + 
+  #xlim(c(-1, -0.35)) + 
   labs(x = "Estimated ATT", y = "",
        color = "Features") +
   scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16, Raw = 15)) + 

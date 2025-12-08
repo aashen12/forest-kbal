@@ -404,9 +404,6 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
       dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
   }
   
-  
-  
-  
   ### Propensity Score Estimation ###
   
   if (ps.mod == "inf") {
@@ -491,6 +488,13 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
     if (verbose) {
       print("DR outcome model estimated")
     }
+  } else if (out.mod == "luke_ols") {
+    eta0.glm <- lm(reformulate(covs[covs != "-1"], response = "Y"), subset = treat == 0, data = data)
+    x <- model.matrix(reformulate(covs[covs != "-1"]), data)
+    mu0 <- predict(eta0.glm, newdata = data.frame(x), type = "response")
+    if (verbose) {
+      print("DR outcome model estimated")
+    }
   } else if (out.mod == "lasso") {
     eta0.glm <- cv.glmnet(X[trt == 0, ], data$Y[trt == 0], alpha = 1, family = "gaussian", nfolds = 10)
     preds <- predict(eta0.glm, s = "lambda.min", newx = X)
@@ -508,8 +512,7 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
   }
   
   dr.att <- sum((data$treat -(1 - data$treat)*data$wts)*(data$Y - mu0))/sum(data$treat)
-  dr.att
-  
+
   mod.dr <- lm(reformulate(c("treat", covs[covs != "-1"]), response="Y"), data=data, weights = wts)
   mod.dr.att <- msm.out(mod.dr)
   mod.dr.att
