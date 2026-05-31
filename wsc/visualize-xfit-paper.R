@@ -1,13 +1,22 @@
-# --- Packages ---
+# =============================================================================
+# WSC Application: Paper Figures (Main Visualization)
+# =============================================================================
+#
+# Post-processes cross-fit results from wsc-xfit.R.
+# Creates: full_plot (by nc), forest plots (both/transformed-only),
+#          job-talk plots, scree_plot, PBR/ESS metrics.
+#
+# Input: results/wsc-math-xfit.RData or results/wsc-math-xfit-exp.RData
+# Output: paper-figs/wsc_full_*.pdf, wsc_main.pdf, wsc_main_transformed.pdf,
+#         wsc_scree_plot.pdf
+# =============================================================================
+
 library(dplyr)
 library(ggplot2)
 
 rm(list = ls())
 
-setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-
 transform <- "log"
-
 
 if (transform == "exp") {
   load("results/wsc-math-xfit-exp.RData")
@@ -20,14 +29,7 @@ if (transform == "exp") {
 
 full.df.trans <- do.call(rbind, lapply(out, function(x) x$out.log$cfit.df))
 full.df.notrans <- do.call(rbind, lapply(out, function(x) x$out.notrans$cfit.df))
-full.df <- rbind(full.df.trans, full.df.notrans) 
-
-# full.df$repeat_num <- rep(1:5, rep(22, 5)) 
-
-dim(full.df)
-
-head(full.df)
-
+full.df <- rbind(full.df.trans, full.df.notrans)
 K <- max(full.df$id)
 
 
@@ -54,13 +56,6 @@ results.df <- full.df %>%
 
 results.df$nc <- as.numeric(results.df$nc)
 
-head(results.df)
-
-full.df %>% group_by(trans) %>% 
-  summarise(elbo_rf = mean(elbo_rf),
-            elbo_bart = mean(elbo_bart))
-
-
 text_size = 18; y_lim = c(0.5, 1.5)
 outcome <- "math"
 
@@ -68,22 +63,12 @@ raw0_lines <- results.df %>%
   dplyr::filter(feat_rep == "raw") %>%
   dplyr::select(est, trans, raw0_est = est.att)
 
-rf0_lines <- results.df %>% 
-  filter(est == "rf", feat_rep == "raw") %>% 
-  dplyr::select(est, trans, feat_rep, rf0_est = est.att)
-
 bench_val <- if (outcome == "math") 0.79 else 2.18
-
-kbal.only.df <- results.df %>% 
-  filter(est == "kbal.bw", !is.na(est.att)) %>% 
-  mutate(est = "bal.wgt", feat_rep = "kebal_only")
 
 df_plot <- results.df %>%
   dplyr::filter(est %in% c("bal.wgt")) %>%
-  #dplyr::bind_rows(kbal.only.df) %>%
   dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
-  dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>%
-  dplyr::filter(nc <= 20) %>% 
+  dplyr::filter(!feat_rep %in% c("raw","rf_K")) %>% 
   dplyr::mutate(
     feat_group = dplyr::case_when(
       feat_rep %in% c("kbal_only", "rf_only", "bart_only") ~ "Kernel Only",
@@ -105,8 +90,6 @@ df_plot <- results.df %>%
 
 df_plot$trans <- factor(df_plot$trans, levels = c("Untransformed", ifelse(transform == "log", "Logarithmic", "Exponential")))
 
-
-num_frs <- length(unique(df_plot$feat_rep))
 
 p.full <- df_plot %>% 
   ggplot2::ggplot(aes(x = nc, y = est.att,
@@ -163,8 +146,6 @@ p.full <- df_plot %>%
   )
 
 
-p.full
-
 ggsave(
   filename = paste0("paper-figs/wsc_full_", transform, ".pdf"),
   plot     = p.full,
@@ -174,12 +155,6 @@ ggsave(
   units    = "in",
   useDingbats = FALSE
 )
-
-
-# full.df$est.att[full.df$feat_rep == "raw_0"] <- 1.008314
-# full.df$se[full.df$feat_rep == "raw_0"] <- 0.3080238
-
-full.df %>% filter(trans == "log", feat_rep == "raw_0", est == "bal.wgt")
 
 bstars.df <- full.df %>% 
   dplyr::mutate(
@@ -260,11 +235,6 @@ bstars.df %>%
   ) %>%
   filter(!feat_rep %in% c("bart_only","kbal_only","rf_only")) %>%
   ggplot(aes(x = est.att, y = encoding, color = family)) +
-  # geom_rect(data = shade_df,
-  #           aes(xmin = xmin, xmax = xmax,
-  #               ymin = ymin, ymax = ymax,
-  #               fill = region),
-  #           inherit.aes = FALSE, alpha = 0.5) +
   geom_vline(xintercept = bench_val, linetype = "dashed",
              linewidth = 1, color = "black") + 
   scale_fill_manual(
@@ -273,7 +243,6 @@ bstars.df %>%
   ) +
   geom_point(size = 6.5) +
   geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.55, linewidth = 0.9) +
-  #geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 1, color = "black") +
   theme_minimal() +
   scale_color_manual(
     name   = "Features",
@@ -314,11 +283,6 @@ bstars.df %>%
   ) %>%
   filter(!feat_rep %in% c("bart_only","kbal_only","rf_only")) %>%
   ggplot(aes(x = est.att, y = encoding, color = family)) +
-  # geom_rect(data = shade_df,
-  #           aes(xmin = xmin, xmax = xmax,
-  #               ymin = ymin, ymax = ymax,
-  #               fill = region),
-  #           inherit.aes = FALSE, alpha = 0.5) +
   geom_vline(xintercept = bench_val, linetype = "dashed",
              linewidth = 1, color = "black") + 
   scale_fill_manual(
@@ -327,14 +291,11 @@ bstars.df %>%
   ) +
   geom_point(size = 6.5) +
   geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.55, linewidth = 0.9) +
-  #geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 1, color = "black") +
   theme_minimal() +
   scale_color_manual(
     name   = "Features",
     values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33",
                "Exp. Benchmark"="firebrick2"),
-    # labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel",
-    #            Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
     breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
   ) +
   scale_y_discrete(labels = c(
@@ -349,7 +310,7 @@ bstars.df %>%
   )) +
   labs(x = "Estimated ATT", y = "", color = "Features") +
   scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
-  theme(text = element_text(size = 23), legend.position = "none") #+xlim(0.4, 1.5)
+  theme(text = element_text(size = 23), legend.position = "none")
 
 ggsave(
   filename = "paper-figs/wsc_main_transformed.pdf",
@@ -360,6 +321,64 @@ ggsave(
   useDingbats = FALSE
 )
 
+
+
+#### JOB TALK PLOTS ###
+
+# Labels used by both plots (non-present levels will be dropped automatically)
+enc_labels <- c(
+  raw_none       = "Raw (untransformed)",
+  kbal_plus_none = "KBal + Raw (untransformed)",
+  rf_plus_none   = "RF + Raw (untransformed)",
+  bart_plus_none = "BART + Raw (untransformed)",
+  raw_log        = "Raw (transformed)",
+  kbal_plus_log  = "KBal + Raw (transformed)",
+  rf_plus_log    = "RF + Raw (transformed)",
+  bart_plus_log  = "BART + Raw (transformed)"
+)
+
+# Common data prep
+base_df <- bstars.df %>%
+  mutate(
+    encoding = factor(encoding, levels = rev(order_levels))  # keep your ordering
+  ) %>%
+  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only"))
+
+# Common plotting spec (so both halves look identical)
+plot_core <- function(d) {
+  ggplot(d, aes(x = est.att, y = encoding, color = family)) +
+    geom_vline(xintercept = bench_val, linetype = "dashed",
+               linewidth = 1, color = "black") +
+    scale_fill_manual(
+      name   = "Benchmark CI",
+      values = c("Outside 95% CI" = "grey50")
+    ) +
+    geom_point(size = 8.5) +
+    geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.55, linewidth = 1.4) +
+    theme_minimal() +
+    scale_color_manual(
+      name   = "Features",
+      values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33",
+                 "Exp. Benchmark"="firebrick2"),
+      labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel",
+                 Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
+      breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
+    ) +
+    scale_y_discrete(labels = enc_labels, drop = TRUE) +
+    labs(x = "Estimated ATT", y = "Feature Representation", color = "Features") +
+    scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
+    theme(text = element_text(size = 33), legend.position = "right")
+}
+
+# --- Half 1: Untransformed ---
+p.untransformed <- base_df %>%
+  filter(encoding %in% c("raw_none","kbal_plus_none","rf_plus_none","bart_plus_none")) %>%
+  plot_core()
+
+# --- Half 2: Transformed ---
+p.transformed <- base_df %>%
+  filter(encoding %in% c("raw_log","kbal_plus_log","rf_plus_log","bart_plus_log")) %>%
+  plot_core()
 
 
 
@@ -459,13 +478,6 @@ metrics.df$nc <- factor(metrics.df$nc)
 metrics.df <- metrics.df %>% mutate(trans = ifelse(trans == "none", "No Transformation", "Exponential Transformation"))
 metrics.df$trans <- factor(metrics.df$trans, levels = c("No Transformation", "Exponential Transformation"))
 
-
-table(metrics.df$nc)
-
-head(metrics.df)
-
-
-
 brks   <- c("KBal","RF","BART","Raw")
 lbls   <- c(KBal="Design Kernel", RF="RF Kernel",
             BART="BART Kernel",   Raw="Raw Covariates")
@@ -511,16 +523,3 @@ metrics.df %>%
     shape = "none",      # don't make separate shape-only legend
     linetype = "none"    # don't make separate linetype-only legend
   ) + theme(text = element_text(size = 18))
-
-                        
-metrics.df %>%
-  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only","rf_K"), nc == 5)
-
-metrics.df %>%
-  filter(feat_rep ==  "raw")
-
-  
-  
-  
-  
-

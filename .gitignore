@@ -1,26 +1,45 @@
-# Ignore everything
-*
+# ---------------------------------------------------------------------------
+# forest-kbal
+#
+# Track all code, GUIDEs, and paper figures by default. Ignore editor/OS cruft,
+# SLURM and run logs, and the bulky regenerable raw simulation data -- but KEEP
+# the combined job-array results and the small revision inputs the plotting
+# scripts need, plus a .gitkeep in each otherwise-empty output directory.
+# ---------------------------------------------------------------------------
 
-# Allow selected folders (first the folder, then everything inside)
-!/simulations/
-!/simulations/**
+# Stray scratch file in the repo root that holds a credential -- never track it
+yes
 
-!/functions/
-!/functions/**
-
-!/wsc/
-!/wsc/**
-
-!/soldiering/
-!/soldiering/**
-
-simulations/slurm_output
-
-# Always allow this file
-!.gitignore
-
-# Recommended RStudio ignores
+# Editor / OS / R session files
 .Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
+.ipynb_checkpoints/
+Rplots.pdf
+
+# SLURM stdout/stderr logs (keep the directory itself via .gitkeep)
+**/slurm_output/*
+!**/slurm_output/.gitkeep
+
+# Per-run text logs
+**/logs/*.txt
+
+# Bulky, regenerable raw output -- kept off GitHub (still on disk locally)
+simulations/results/
+lalonde/results/
+wsc/results/
+
+# Scratch/temp result dumps written mid-run (e.g. sim1-revision-temp.RData)
+*temp*.RData
+
+# Job-array per-task outputs are high-volume and ephemeral: ignore the per-task
+# files, but KEEP the combined-per-(q,n) results (needed for plotting) and the
+# directory itself.
+simulations/infrastructure-job-arrays/results-spawn/*
+!simulations/infrastructure-job-arrays/results-spawn/.gitkeep
+!simulations/infrastructure-job-arrays/results-spawn/*combined*.RData
+
+# Always track this file
+!.gitignore

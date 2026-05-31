@@ -1,0 +1,4 @@
+# Keeps the results-spawn/ directory in the repo. Per-task .RData files written
+# by sim1-revision-array.R land here, and combine-spawn-results.R writes its
+# combined-per-q file here as well. Task files are gitignored; combined files
+# are allowed through (see .gitignore).

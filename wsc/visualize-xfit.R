@@ -1,17 +1,20 @@
-# --- Packages ---
+# =============================================================================
+# WSC Application: Cross-Fit Visualization (Exp Transform)
+# =============================================================================
+#
+# Creates line plots for WSC results (untransformed and log-transformed).
+# Wraps plotting in create_plot_wsc() for easy faceting by transform.
+#
+# Input: results/wsc-math-xfit-exp.RData
+# =============================================================================
+
 library(dplyr)
 library(ggplot2)
 
-setwd("~/Desktop/BalWeights/forest-kbal/wsc")
 load("results/wsc-math-xfit-exp.RData")
 outcome <- "math"
 
 full.df <- do.call(rbind, out)
-
-# full.df$repeat_num <- rep(1:5, rep(22, 5)) 
-
-dim(full.df)
-
 K <- max(full.df$id)
 
 
@@ -38,13 +41,6 @@ results.df <- full.df %>%
 
 results.df$nc <- as.numeric(results.df$nc)
 
-head(results.df)
-
-full.df %>% group_by(trans) %>% 
-  summarise(elbo_rf = mean(elbo_rf),
-            elbo_bart = mean(elbo_bart))
-
-
 create_plot_wsc <- function(trans_level = c("none","log"),
                               text_size = 25,
                               y_lim = c(0.5, 1.5)) {
@@ -60,10 +56,6 @@ create_plot_wsc <- function(trans_level = c("none","log"),
   raw0_lines <- results.df %>%
     dplyr::filter(feat_rep == "raw") %>%
     dplyr::select(est, trans, raw0_est = est.att)
-  
-  rf0_lines <- results.df %>% 
-    filter(est == "rf", feat_rep == "raw") %>% 
-    dplyr::select(est, trans, feat_rep, rf0_est = est.att)
   
   bench_val <- if (outcome == "math") 0.79 else 2.18
   
@@ -143,15 +135,4 @@ create_plot_wsc <- function(trans_level = c("none","log"),
 
 create_plot_wsc("none")
 create_plot_wsc("log")
-
-
-
-c(2.18 - (1.96 * 0.19), 2.18 + (1.96 * 0.19))
-c(0.79 - (1.96 * 0.28), 0.79 + (1.96 * 0.28))
-
-head(results.df)
-
-
-
-
 

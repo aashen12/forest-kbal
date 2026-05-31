@@ -1,10 +1,14 @@
 
+for o in 30 100; do for ns in 10; do sbatch sim2.sh "$o" "$ns"; done; done
+
+for o in 30 100; do for ns in 50; do sbatch sim2.sh "$o" "$ns"; done; done
+
+for o in 30 100; do for ns in 1000; do sbatch sim2.sh "$o" "$ns"; done; done
+
+for o in 30 100; do for ns in 100; do sbatch sim2.sh "$o" "$ns"; done; done
 
 
-for o in 30 100; do for ns in 100; do sbatch simulation2.sh "$o" "$ns"; done; done
-
-for o in 30 100; do for ns in 1000; do sbatch simulation2.sh "$o" "$ns"; done; done
-
-sbatch simulation1.sh 1000
-
+sbatch sim1.sh 20
+sbatch sim1.sh 1000
+sbatch sim1.sh 5000
 

@@ -1,3 +1,12 @@
+# =============================================================================
+# LEGACY FILE — NOT USED
+# =============================================================================
+#
+# This is an older version of the WSC analysis that sources from R/ subdirectories
+# which no longer exist. It has been superseded by wsc-xfit.R.
+# Kept for reference only.
+# =============================================================================
+
 library(foreign)
 library(balancer)
 library(dplyr)

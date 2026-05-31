@@ -1,17 +1,20 @@
+# =============================================================================
+# Soldiering Application: Cross-Fit Result Visualization
+# =============================================================================
+#
+# Post-processes cross-fit results from soldiering-xfit.R.
+# Creates: full_plot, tf_plot (forest plot at nc=5), scree_plot, ESS/PBR metrics.
+#
+# Input: results/soldiering-xfit-educ-2010.RData
+# Output: paper-figs/soldiering_full_plot.pdf, soldiering_tf_plot.pdf,
+#         soldiering_scree_plot.pdf
+# =============================================================================
 
 library(tidyverse)
 
 rm(list = ls())
-setwd("~/Desktop/BalWeights/forest-kbal/soldiering")
 load("results/soldiering-xfit-educ-2010.RData")
-#load("results/soldiering-xfit-distress-ror.RData")
 full.df <- do.call(rbind, lapply(out, function(x) x$cfit.df))
-
-# full.df$repeat_num <- rep(1:5, rep(22, 5)) 
-dim(full.df)
-
-head(full.df)
-
 K <- max(full.df$id)
 
 results.df <- full.df %>% 
@@ -45,28 +48,17 @@ raw0_lines <- results.df %>%
   dplyr::filter(feat_rep == "raw") %>%
   dplyr::select(est, trans, raw0_est = est.att)
 
-rf0_lines <- results.df %>% 
-  dplyr::filter(est == "rf", feat_rep == "raw") %>% 
-  dplyr::select(est, trans, feat_rep, rf0_est = est.att)
-
 benchmark_lines <- data.frame(
   est = "bal.wgt",
   trans = c("none", "log"),
   bench_est = c(1.01, 1.01)
 )
 
-kbal.only.df <- results.df %>% 
-  filter(est == "kbal.bw", !is.na(est.att)) %>% 
-  mutate(est = "bal.wgt", feat_rep = "kebal_only")
-
-
 df_plot <- results.df %>%
   dplyr::filter(est == "bal.wgt") %>%
-  #bind_rows(kbal.only.df) %>%
   dplyr::left_join(raw0_lines, by = c("est", "trans")) %>%
   dplyr::left_join(benchmark_lines, by = c("est", "trans")) %>%
-  dplyr::filter(!feat_rep %in% c("raw")) %>%
-  #dplyr::filter(nc <= 20) %>% 
+  dplyr::filter(!feat_rep %in% c("raw")) %>% 
   dplyr::mutate(
     feat_group = dplyr::case_when(
       feat_rep %in% c("kbal_only", "rf_only", "bart_only", "kbal_K", "rf_K", "bart_K") ~ "Kernel Only",
@@ -86,11 +78,8 @@ df_plot <- results.df %>%
   ) %>%
   dplyr::filter(!is.na(feat_group), !is.na(family), feat_group %in% c("Kernel + Raw", "Kernel Only"))
 
-head(df_plot[df_plot$feat_rep == "rf_plus",])
-
-
-full.plot = df_plot %>% 
-  dplyr::filter(feat_group=="Kernel + Raw") %>% 
+full.plot = df_plot %>%
+  dplyr::filter(feat_group=="Kernel + Raw") %>%
   ggplot(
     aes(
       x = factor(nc),
@@ -101,11 +90,6 @@ full.plot = df_plot %>%
     )
   ) +
   geom_point(size = 6.5) +
-  # geom_errorbar(
-  #   aes(ymin = lcl, ymax = ucl),
-  #   width = 0.9,
-  #   position = position_dodge(width = 0.05)
-  # ) +
   geom_line(linewidth = 0.8) +
   # Baselines (mapped to color so they appear in the legend)
   geom_hline(
@@ -115,11 +99,6 @@ full.plot = df_plot %>%
     linetype = "dashed",
     inherit.aes = FALSE
   ) +
-  # geom_hline(
-  #   aes(yintercept = -0.75, color = "Exp. Benchmark"),
-  #   inherit.aes = FALSE, color = "red"
-  # ) +
-  #facet_wrap(~ feat_group, scales = "free_y") +
   labs(
     y = "Estimated ATT",
     x = "Number of Principal Components",
@@ -165,10 +144,6 @@ full.plot = df_plot %>%
   )
 
 
-full.plot
-
-
-
 ggsave(
   filename = "paper-figs/soldiering_full_plot.pdf",
   plot     = full.plot,
@@ -181,19 +156,6 @@ ggsave(
 
 
 text_size = 30; y_lim = c(0.5, 1.5)
-
-# desired top-to-bottom story order:
-order_levels <- c(
-  "raw_none",
-  "kbal_plus_none",
-  "rf_plus_none",
-  "bart_plus_none",
-  "raw_log",
-  "kbal_plus_log",
-  "rf_plus_log",
-  "bart_plus_log"
-)
-
 
 bstars.df <- full.df %>% 
   dplyr::mutate(
@@ -259,13 +221,6 @@ tf.plot = bstars.df %>%
       Raw              = "gray33",
       "Exp. Benchmark" = "firebrick2"
     ),
-    # labels = c(
-    #   KBal = "Design Kernel",
-    #   RF   = "RF Kernel",
-    #   BART = "BART Kernel",
-    #   Raw  = "Raw Covariates",
-    #   "Exp. Benchmark" = "Exp. Benchmark"
-    # ),
     breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
   ) +
   scale_y_discrete(
@@ -279,7 +234,6 @@ tf.plot = bstars.df %>%
       raw        = "Raw"
     )
   ) +
-  #xlim(c(-1, -0.35)) + 
   labs(x = "Estimated ATT", y = "",
        color = "Features") +
   scale_shape_manual(values = c(KBal = 17, RF = 16, BART = 16, Raw = 15)) + 
@@ -352,8 +306,6 @@ ggsave(
   useDingbats = FALSE
 )
 
-unique(scree.df.summ$nc)
-
 ### PBR/ESS plots ###
 
 metrics.df <- full.df %>% 
@@ -399,25 +351,13 @@ metrics.df <- metrics.df %>% mutate(trans = ifelse(trans == "none", "No Transfor
 metrics.df$trans <- factor(metrics.df$trans, levels = c("No Transformation", "Exponential Transformation"))
 
 
-table(metrics.df$nc)
-
-head(metrics.df)
-
-
-
 brks   <- c("KBal","RF","BART","Raw")
 lbls   <- c(KBal="Design Kernel", RF="RF Kernel",
             BART="BART Kernel",   Raw="Raw Covariates")
 
 raw0_metrics_df <- metrics.df %>%
-  filter(feat_rep %in% c("raw")) %>% 
+  filter(feat_rep %in% c("raw")) %>%
   dplyr::select(est, raw0_pbr = pbr, raw0_ess = ess)
-
-metrics.df %>%
-  filter(!feat_rep %in% c("raw")) %>%
-  left_join(raw0_metrics_df, by = "est") %>% 
-  filter(nc == 5) %>% data.frame()
-
 
 metrics.df %>%
   filter(!feat_rep %in% c("raw")) %>%
@@ -459,13 +399,4 @@ metrics.df %>%
     shape = "none",      # don't make separate shape-only legend
     linetype = "none"    # don't make separate linetype-only legend
   ) + theme(text = element_text(size = 18))
-
-
-metrics.df %>%
-  filter(!feat_rep %in% c("bart_only","kbal_only","rf_only","rf_K"), nc == 5)
-
-metrics.df %>%
-  filter(feat_rep ==  "raw")
-
-
 

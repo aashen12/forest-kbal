@@ -1,4 +1,22 @@
-# hyperparameter estimation
+# =============================================================================
+# Estimation Functions for Simulation Studies
+# =============================================================================
+#
+# Core ATT estimation functions used in forest-kbal simulations:
+#   estimate_regularization() - Estimate balancing weight hyperparameter lambda
+#   compute_relative_bias()   - Absolute relative bias metric
+#   msm.out()                 - Extract treatment effect from weighted regression
+#   create_sbw_constraints()  - QP constraints for L-inf balancing
+#   sbw_osqp()                - L-inf balancing weights via OSQP
+#   balancingWeights()        - L2 balancing weights (main estimator)
+#   logisticIPW()             - Inverse probability weighting
+#   outcomeRegression()       - Outcome regression (OLS, LASSO, Ridge, RF)
+#   augmentedBalWeights()     - Doubly robust / augmented estimator
+#
+# These implement the estimators described in Section 2.2 of Shen et al. (2025).
+# =============================================================================
+
+# Hyperparameter estimation: residual variance from control-group regression
 estimate_regularization <- function(data, covs) {
   data.c <- data %>% dplyr::filter(treat==0)
   lambda.reg <- lm(reformulate(covs, response="scale(Y)"), data=data.c)
@@ -84,13 +102,10 @@ sbw_osqp <- function(X, Z, tol, ...) {
 
 balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs, 
                              att = TRUE, verbose = FALSE) {
-  # l2 or inf
-  #print(paste("True ATT:", round(true_att, 3)))
   if ("Z" %in% colnames(data)) {
-    data <- data %>% 
-      dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
+    data <- data %>% dplyr::rename(treat = Z)
   }
-  
+
   if (is.null(raw_covs)) {
     # scenario where we use kernel only
     covs <- kernel_covs
@@ -190,13 +205,9 @@ balancingWeights <- function(data, true_att, feat_rep, raw_covs, kernel_covs,
                    weights = wts, id=1:nrow(data),
                    corstr="independence")
   att.bw <- msm.out(bal.wt)
-  att.bw
   sr.att.bw <- sum((data$treat -(1 - data$treat)*data$wts)*data$Y)/sum(data$treat)
-  sr.att.bw # singly robust
-  
+
   bias.bw <- sr.att.bw - true_att
-  bias.bw
-  # ATT of ACIC-17 around 0.118
   rel.bias <- compute_relative_bias(sr.att.bw, true_att)
   
   coverage.bw <- (true_att >= att.bw["lcl.treat"]) & (true_att <= att.bw["ucl.treat"])
@@ -220,14 +231,13 @@ logisticIPW <- function(data, true_att, feat_rep, covs, att = TRUE, verbose = FA
   
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
-      dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
+      dplyr::rename(treat = Z)
   }
   
   if (is.null(covs)) {
     covs <- names(data)[!names(data) %in% c("Y", "treat")]
   }
   
-  # covs <- names(data)[!names(data) %in% c("Y", "treat")]
   basis <- c(covs, "-1")
   contains_rf_only <- grepl("only", feat_rep)
   X <- scale(model.matrix(reformulate(basis), data))
@@ -310,10 +320,8 @@ logisticIPW <- function(data, true_att, feat_rep, covs, att = TRUE, verbose = FA
                          weights = ip.wts, id=1:nrow(data),
                          corstr="independence")
   att.ipw <- msm.out(ipw.wt)
-  att.ipw
   sr.att.ipw <- sum((data$treat -(1 - data$treat)*data$ip.wts)*data$Y)/sum(data$treat)
-  sr.att.ipw # singly robust
-  
+
   bias.ipw <- sr.att.ipw - true_att
   rel.bias <- compute_relative_bias(sr.att.ipw, true_att)
   coverage.ipw <- (true_att >= att.ipw["lcl.treat"]) & (true_att <= att.ipw["ucl.treat"])
@@ -333,7 +341,7 @@ logisticIPW <- function(data, true_att, feat_rep, covs, att = TRUE, verbose = FA
 outcomeRegression <- function(data, true_att, feat_rep, type = "ols", covs, verbose = FALSE) {
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
-      dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
+      dplyr::rename(treat = Z)
   }
   
   if (is.null(covs)) {
@@ -401,7 +409,7 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
   # do not mix lasso with l2, or ridge with sbw
   if ("Z" %in% colnames(data)) {
     data <- data %>% 
-      dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
+      dplyr::rename(treat = Z)
   }
   
   ### Propensity Score Estimation ###
@@ -515,7 +523,6 @@ augmentedBalWeights <- function(data, true_att, feat_rep, raw_covs = NULL, kerne
 
   mod.dr <- lm(reformulate(c("treat", covs[covs != "-1"]), response="Y"), data=data, weights = wts)
   mod.dr.att <- msm.out(mod.dr)
-  mod.dr.att
   if (verbose) print("Doubly robust estimates computed")
   
   

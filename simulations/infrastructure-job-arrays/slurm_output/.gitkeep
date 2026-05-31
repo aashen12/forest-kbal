@@ -1,0 +1,2 @@
+# Keeps the slurm_output/ directory in the repo so SLURM can write its
+# --output/--error files for each array task. The logs themselves are not tracked.

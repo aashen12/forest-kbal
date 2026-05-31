@@ -1,11 +1,23 @@
+# =============================================================================
+# Variance Sweep Functions
+# =============================================================================
+#
+# Sensitivity analysis for the mixing parameter p between raw covariates
+# and kernel features (Section 2.3 of Shen et al., 2025).
+#
+# When combining raw + kernel features, the balance objective uses:
+#   X_combined = cbind((1-p) * X_raw, p * X_kernel)
+# where p=0 is raw-only and p=1 is kernel-only.
+#
+# Functions:
+#   bal_weights_varsweep()   - Balancing weights with parameterized mixing
+#   eval_data_varsweep()     - Run varsweep across a grid of p values
+# =============================================================================
 
-bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs, 
+bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs,
                                  p = 0.5, verbose = FALSE) {
-  # l2 or inf
-  #print(paste("True ATT:", round(true_att, 3)))
   if ("Z" %in% colnames(data)) {
-    data <- data %>% 
-      dplyr::rename(treat = Z) #%>% dplyr::select(-Y0, -Y1)
+    data <- data %>% dplyr::rename(treat = Z)
   }
   
   if (is.null(raw_covs)) {
@@ -104,20 +116,9 @@ bal_weights_varsweep <- function(data, true_att, feat_rep, raw_covs, kernel_covs
                    weights = wts, id=1:nrow(data),
                    corstr="independence")
   att.bw <- msm.out(bal.wt)
-  att.bw
   sr.att.bw <- sum((data$treat -(1 - data$treat)*data$wts)*data$Y)/sum(data$treat)
-  sr.att.bw # singly robust
-  
-  with(data, {
-    mean(Y[treat==1]) - sum(wts[treat==0] * Y[treat==0]) / sum(wts[treat==0])
-  })
-  
-  sum(data$wts[data$treat == 0])
-  sum(data$treat)
-  
+
   bias.bw <- sr.att.bw - true_att
-  bias.bw
-  # ATT of ACIC-17 around 0.118
   rel.bias <- compute_relative_bias(sr.att.bw, true_att)
   
   coverage.bw <- (true_att >= att.bw["lcl.treat"]) & (true_att <= att.bw["ucl.treat"])
@@ -141,15 +142,9 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
   
   data.c <- dat %>% filter(Z==0)
   data.t <- dat %>% filter(Z==1)
-  
-  # set.seed(1031)
-  # train <- sample(nrow(data.c), round(.1*nrow(data.c)))
-  # length(train)
-  # data.c.train <- data.c[train, ]
-  # data.c.test <- data.c[-train, ]
+
   data.c.train <- pilot.dat
   data <- rbind(data.t, data.c)
-  # gets rid of the training sample used to select interactions & nonlinear covariates
   
   if (simulation) {
     covs <- names(dat)[!names(dat) %in% c("Z", "Y")]
@@ -179,23 +174,9 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
   
   data_rf_only_whole <- rf_obj$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   data_rf_plus_whole <- rf_obj$data_rf
-  # data_rf_mixed_whole <- rf_obj$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   data_rf_K <- rf_obj$K %>% dplyr::mutate(Y = data$Y, Z = data$Z)
   orig_varsweep <- sum(apply(rf_obj$features, 2, var))
   ##############################################################################
-  
-  ############################# Extract BART Kernel Features #################################
-  if (verbose) print("Starting BART Kernel")
-  
-  # bart_obj <- bart_kernel_matrix(train = data.c.train, test = data, seed = 1022, verbose = TRUE, simulation = simulation)
-  # K_generic <- bart_obj$kernel
-  # bart.pca <- pca_bart(kernel = K_generic, data = data, X = as.matrix(data %>% dplyr::select(-Y)), 
-  #                      n_components = max(nc_bart))
-  # elbo_bart <- bart.pca$elbow
-  # data_bart_only_whole <- bart.pca$features %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  # data_bart_plus_whole <- bart.pca$data_bart
-  # data_bart_mixed_whole <- bart.pca$features_mixed %>% dplyr::mutate(Y = data$Y, Z = data$Z)
-  
   
   varsweep_vec <- seq(0, 1, by = 0.05)
   
@@ -228,11 +209,6 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
       kernel_covs <- c(paste0("PC", 1:nc))
       input_covs <- kernel_covs
       dataset <- data_rf_only_whole %>% dplyr::select(Z, Y, all_of(input_covs))
-    } else if (fr == "rf_mixed") {
-      raw_covs <- NULL
-      kernel_covs <- c(paste0("PC", 1:nc))
-      input_covs <- kernel_covs
-      dataset <- data_rf_mixed_whole %>% dplyr::select(Z, Y, all_of(input_covs))
     } else if (fr == "bart_plus") {
       raw_covs <- covs
       kernel_covs <- c(paste0("PC", 1:nc))
@@ -243,12 +219,7 @@ eval_data_varsweep <- function(dat, pilot.dat, treat.true = 5, verbose = FALSE, 
       kernel_covs <- c(paste0("PC", 1:nc))
       input_covs <- kernel_covs
       dataset <- data_bart_only_whole %>% dplyr::select(Z, Y, all_of(input_covs))
-    } else if (fr == "bart_mixed") {
-      raw_covs <- NULL
-      kernel_covs <- c(paste0("PC", 1:nc))
-      input_covs <- kernel_covs
-      dataset <- data_bart_mixed_whole %>% dplyr::select(Z, Y, all_of(input_covs))
-    } 
+    }
     
     # compute ATT, balance metrics, error metrics, and so forth for each estimator 
     

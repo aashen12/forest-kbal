@@ -1,152 +1,89 @@
-rm(list=ls())
-if (!require(rsample)) install.packages("rsample"); library(rsample)
-if (!require(kernlab)) install.packages("kernlab"); library(kernlab)
-if (!require(stochtree)) install.packages("stochtree"); library(stochtree)
-# generate Luke's data from Simulation 1 from Bal-Wgt-Educ
-library(MASS)
-library(tidyverse)
-options(list(dplyr.summarise.inform = FALSE))
-library(balancer)
-library(geepack)
-library(GenericML)
-library(WeightIt)
-library(glmnet)
-library(kbal)
-library(rsample)
-library(kernlab)
-library(stochtree)
-library(sandwich)
-library(randomForest)
+# =============================================================================
+# Simulation 2: Forest Kernel Balancing — Kim et al. (2024) DGP
+# =============================================================================
+#
+# Appendix simulation from Shen et al. (2025).
+# Uses Kim et al. (2024) DGP with varying overlap conditions.
+# True ATT = 0 by construction.
+#
+# DGP: 6 covariates (3 correlated normals, 1 uniform, 1 chi-squared,
+#      1 Bernoulli). Overlap controlled by sig.ep noise parameter.
+#      n=1000 per rep. Pilot sample: controls only (~500).
+#
+# Usage:
+#   Rscript simulation2.R <overlap> <num_reps>
+#
+# Example:
+#   sbatch sim2.sh 30 1000    # moderate overlap
+#   sbatch sim2.sh 100 1000   # strong overlap
+#
+# Arguments:
+#   overlap   Noise parameter for treatment assignment (30 or 100)
+#   num_reps  Number of Monte Carlo replications
+#
+# Output:
+#   results/simulation2-overlap-<overlap>-numsim-<num_reps>-<date>.RData
+# =============================================================================
 
+rm(list = ls())
 
-setwd("~/Desktop/BalWeights/forest-kbal/simulations")
+# --- Setup -------------------------------------------------------------------
+source("../functions/sim-utils.R")
+load_sim_packages()
+
+source("../functions/dgp.R")
 source("../functions/BART-features.R")
 source("../functions/randomForestFeatures.R")
 source("../functions/sim-estimation-funcs.R")
 source("../functions/sim-eval-funcs.R")
 
-# library(doFuture)
-library(foreach)
-library(doParallel)
-library(parallel)
-library(future.apply)
-
+# --- Parse command-line arguments --------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-
 overlap <- as.numeric(args[1])
 sim_reps <- as.numeric(args[2])
 
+# --- Logging -----------------------------------------------------------------
+out_filename <- create_log(paste0("sim2-", overlap))
+cat(paste("Number of reps:", sim_reps, "| Overlap:", overlap, "\n"),
+    file = out_filename, append = TRUE)
 
-out_filename <- paste0("logs/sim2-", overlap, "-", format(Sys.time(), "%b-%d-%X-%Y"), ".txt")
+# --- Parallel setup ----------------------------------------------------------
+num_cores <- setup_parallel()
 
-write("", out_filename, append = FALSE)   ##### ADDED (overwrite existing file)
-
-log_message <- paste("Number of reps:", sim_reps, "\n")
-cat(log_message, file = out_filename, append = TRUE)
-
-make_data <- function(n, sig.ep) {
-  # Generate ZZ variables from standard normal distribution
-  #print(sig.ep)
-  sig.123 <- diag(c(2,1,1))
-  sig.123[1,2] <- 1; sig.123[1,3] <- -1; sig.123[2,3] <- -0.5;
-  sig.123 <- Matrix::forceSymmetric(sig.123)
-  beta_coef <- c(1,2,-2,-1,-0.5,1)
-  
-  X.123 <- as.matrix(mvrnorm(n, mu = rep(0,3), Sigma = sig.123))
-  colnames(X.123) <- paste0("X", 1:3)
-  X4 <- runif(n,-3,3)
-  X5 <- rchisq(n,1)
-  X6 <- rbinom(n,1,0.5)
-  X <- cbind(X.123, X4, X5, X6)
-  X1 <- X[,1]
-  X2 <- X[,2]
-  X3 <- X[,3]
-  expression_value <- X1^2 + 2*X2^2 - 2*X3^2 - (X4 + 1)^3 - 0.5*log(X5 + 10) + X6 - 1.5
-  Z <- ifelse(expression_value + rnorm(n,0,sig.ep) > 0, 1, 0)
-  Y <- (X.123[,1] + X.123[,2] + X5)^2 + rnorm(n,0,1)
-  
-  out.df <- data.frame(X, Z = Z, Y = Y)
-  
-  return(list(out.df=out.df, true.att = 0))
-}
-
-#numCores <- as.numeric(Sys.getenv('SLURM_NTASKS'))
-#plan(multisession, workers = numCores)
-
-numCores <- as.numeric(Sys.getenv('SLURM_CPUS_PER_TASK'))
-plan(multisession, workers = numCores - 1)
-
-### Sim Run
-
+# --- Run simulation ----------------------------------------------------------
 set.seed(23967)
 
+cat(paste("Starting Simulation 2 at", Sys.time(), "\n"), file = out_filename, append = TRUE)
 
-run_scenario = function() {
-  
-  log_message <- paste("Starting Simulation 2 at", Sys.time(), "\n")
-  cat(log_message, file = out_filename, append = TRUE)
-  
-  
-  # Run the Simulation              
-  reps_qs0 = mclapply( 1:sim_reps, function( id ) {
-    if (id < 25) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE)
-    if (id > 975) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE) 
-    if (id %% 25 == 0) cat(paste("Starting simulation", id, "at", Sys.time(), "\n"), file = out_filename, append = TRUE)
-    
-    bdat.obj <- make_data(n = 1000, sig.ep = overlap)
-    bdat <- bdat.obj$out.df
-    
-    pilot.dat.obj <- make_data(1000, sig.ep = overlap) # 1000 typically
-    
-    # keep the first 500 rows
-    pilot.dat <- pilot.dat.obj$out.df %>% dplyr::filter(Z == 0)
-    
-    true.att.bdat <- bdat.obj$true.att
-    
-    edat <- tryCatch({
-      eval_data(dat = bdat, 
-                pilot.dat = pilot.dat, 
-                treat.true = true.att.bdat, verbose = FALSE, dataset = "simulation")
-    },
-    error = function(e) {
-      print("Eval data failed")
-      print(e)
-      l <- list(dat = bdat, pilot.dat = pilot.dat, true.att.bdat = true.att.bdat)
-      save(l, file = paste0("eval-data-fail-", overlap, ".RData"))
-    })
-    
-    #edat$id = id
-    #edat
-    out <- lapply(1:length(edat), function(i) {
-      resi <- edat[[i]]
-      elbo_rf <- resi$elbo_rf
-      elbo_bart <- resi$elbo_bart
-      resi_rest <- resi[!names(resi) %in% c("elbo_rf", "elbo_bart", "rf_expl_var", "bart_expl_var", "kbal_expl_var")]
-      dplyr::bind_rows(resi_rest) %>% dplyr::mutate(elbo_rf = elbo_rf, elbo_bart = elbo_bart)
-    })
-    
-    out_df <- dplyr::bind_rows(out) %>% dplyr::mutate(id = id)
-    rownames(out_df) <- NULL
-    out_df
-  }, mc.set.seed = TRUE, mc.cores = numCores - 1) 
-  #cat("Sim Done")
-  dplyr::bind_rows(reps_qs0)
-}
+scenarios <- dplyr::bind_rows(mclapply(1:sim_reps, function(id) {
+  log_progress(id, sim_reps, out_filename)
 
+  # Generate analysis sample and pilot sample (controls only)
+  bdat.obj <- make_data_sim2(n = 1000, sig.ep = overlap)
+  bdat <- bdat.obj$out.df
+  pilot.dat <- make_data_sim2(1000, sig.ep = overlap)$out.df %>% dplyr::filter(Z == 0)
 
-scenarios <- run_scenario()
+  edat <- tryCatch({
+    eval_data(dat = bdat, pilot.dat = pilot.dat,
+              treat.true = bdat.obj$true.att, verbose = FALSE,
+              dataset = "simulation")
+  }, error = function(e) {
+    cat(paste("eval_data failed on rep", id, ":", e$message, "\n"),
+        file = out_filename, append = TRUE)
+    save(list("dat" = bdat, "pilot.dat" = pilot.dat),
+         file = paste0("eval-data-fail-", overlap, ".RData"))
+    return(NULL)
+  })
 
-log_message <- "temp file saved \n"
-cat(log_message, file = out_filename, append = TRUE)
+  if (is.null(edat)) return(NULL)
+  process_eval_results(edat, id)
+}, mc.set.seed = TRUE, mc.cores = num_cores - 1))
 
-save(scenarios, file="simulations2-temp.RData")
+# --- Save results ------------------------------------------------------------
+save(scenarios, file = "simulations2-temp.RData")
+cat("temp file saved\n", file = out_filename, append = TRUE)
 
-filename <- paste0("results/simulation2-overlap-", overlap, "-", "numsim-", sim_reps, "-", format(Sys.time(), "%b-%d-%Y"), ".RData")
-
-save(scenarios, file=filename)
-print("saved file")
-
-log_message <- "saved file \n"
-cat(log_message, file = out_filename, append = TRUE)
-
-
+filename <- paste0("results/simulation2-overlap-", overlap, "-numsim-", sim_reps, "-",
+                   format(Sys.time(), "%b-%d-%Y"), ".RData")
+save(scenarios, file = filename)
+cat("saved file\n", file = out_filename, append = TRUE)

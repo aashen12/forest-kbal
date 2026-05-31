@@ -1,20 +1,20 @@
-# --- Packages ---
+# =============================================================================
+# WSC Application: B-Stars Visualization (Exp Transform)
+# =============================================================================
+#
+# Visualizes WSC cross-fit results with exponential transformation.
+# Creates: line plot by nc, forest plot at nc=3.
+#
+# Input: results/wsc-math-xfit-exp.RData
+# =============================================================================
+
 library(dplyr)
 library(ggplot2)
 
 rm(list = ls())
-
-setwd("~/Desktop/BalWeights/forest-kbal/wsc")
-#load("results/wsc-math-xfit.RData")
 load("results/wsc-math-xfit-exp.RData")
 
-
 full.df <- do.call(rbind, out)
-
-# full.df$repeat_num <- rep(1:5, rep(22, 5)) 
-
-dim(full.df)
-
 K <- max(full.df$id)
 
 
@@ -41,23 +41,12 @@ results.df <- full.df %>%
 
 results.df$nc <- as.numeric(results.df$nc)
 
-head(results.df)
-
-full.df %>% group_by(trans) %>% 
-  summarise(elbo_rf = mean(elbo_rf),
-            elbo_bart = mean(elbo_bart))
-
-
 text_size = 25; y_lim = c(0.5, 1.5)
 outcome <- "math"
 
 raw0_lines <- results.df %>%
   dplyr::filter(feat_rep == "raw") %>%
   dplyr::select(est, trans, raw0_est = est.att)
-
-rf0_lines <- results.df %>% 
-  filter(est == "rf", feat_rep == "raw") %>% 
-  dplyr::select(est, trans, feat_rep, rf0_est = est.att)
 
 bench_val <- if (outcome == "math") 0.79 else 2.18
 
@@ -138,12 +127,6 @@ df_plot %>%
   )
 
 
-
-
-# full.df$est.att[full.df$feat_rep == "raw_0"] <- 1.008314
-# full.df$se[full.df$feat_rep == "raw_0"] <- 0.3080238
-
-full.df %>% filter(trans == "log", feat_rep == "raw_0", est == "bal.wgt")
 
 bstars.df <- full.df %>% 
   dplyr::mutate(
@@ -240,57 +223,3 @@ bstars.df %>%
     strip.text = element_text(size = text_size - 3, face = "bold"),
     legend.position = "right"
   ) + xlim(0.4, 1.5)
-
-
-# helper to keep your existing plot code intact
-# plot_bstars_stage <- function(data, stage = c("raw", "kbal", "all")) {
-#   stage <- match.arg(stage)
-#   keep_levels <- switch(
-#     stage,
-#     raw  = c("raw"),
-#     kbal = c("raw", "kbal_only", "kbal_plus"),
-#     all  = c("raw", "kbal_only","kbal_plus","bart_only","bart_plus","rf_only","rf_plus")
-#   )
-#   
-#   data %>%
-#     dplyr::filter(feat_rep %in% keep_levels) %>%
-#     dplyr::mutate(
-#       feat_rep = factor(
-#         feat_rep,
-#         levels = rev(c("raw","kbal_only","kbal_plus","bart_only","bart_plus","rf_only","rf_plus"))
-#       )
-#     ) %>%
-#     ggplot(aes(x = est.att, y = feat_rep, color = family)) +
-#     geom_point(size = 8) +
-#     geom_errorbarh(aes(xmin = lcl, xmax = ucl), height = 0.4, linewidth = 1.5) +
-#     theme_bw() +
-#     geom_vline(xintercept = 0.79, linetype = "dashed", linewidth = 0.8, color = "black") +
-#     scale_color_manual(
-#       name   = "Features",
-#       values = c(KBal="#d62728", RF="#1f77b4", BART="#ff7f0e", Raw="gray33", "Exp. Benchmark"="firebrick2"),
-#       labels = c(KBal="Design Kernel", RF="RF Kernel", BART="BART Kernel", Raw="Raw Covariates", "Exp. Benchmark"="Exp. Benchmark"),
-#       breaks = c("KBal","RF","BART","Raw","Exp. Benchmark")
-#     ) +
-#     scale_y_discrete(
-#       labels = c(
-#         rf_plus="RF + Raw", rf_only="RF Only",
-#         kbal_plus="KBal + Raw", kbal_only="KBal Only",
-#         bart_plus="BART + Raw", bart_only="BART Only",
-#         raw="Raw"
-#       )
-#     ) +
-#     labs(x="Estimated ATT", y="Feature Representation", color="Features") +
-#     scale_shape_manual(values = c(KBal=17, RF=16, BART=16, Raw=15)) +
-#     theme(text = element_text(size = text_size),
-#           strip.text = element_text(size = text_size - 3, face = "bold"),
-#           legend.position = "right") +
-#     xlim(0.3, 1.7)
-# }
-# 
-# # Use:
-# p_raw  <- plot_bstars_stage(bstars.df, "raw")
-# p_kbal <- plot_bstars_stage(bstars.df, "kbal")
-# p_all  <- plot_bstars_stage(bstars.df, "all")
-# 
-# 
-# p_all
